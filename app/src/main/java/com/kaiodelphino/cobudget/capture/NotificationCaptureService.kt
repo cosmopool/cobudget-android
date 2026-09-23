@@ -110,6 +110,7 @@ class NotificationCaptureService : NotificationListenerService() {
                     appLabel = app.label,
                     notificationKey = sbn.key,
                     postedAt = sbn.postTime,
+                    notificationWhen = n.`when`,
                     title = title,
                     text = text,
                     bigText = bigText,

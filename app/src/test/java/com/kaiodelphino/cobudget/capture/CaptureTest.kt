@@ -41,10 +41,12 @@ class CaptureTest {
         pkg: String = BANK,
         text: String = "You spent $4.50 at Coffee",
         postTime: Long = 1_000_000,
+        whenTime: Long = postTime,
         configure: Notification.Builder.() -> Unit = {},
     ): Boolean = runBlocking {
         val notification = Notification.Builder(context, "alerts")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setWhen(whenTime)
             .setContentTitle("Card purchase")
             .setContentText(text)
             .setStyle(Notification.BigTextStyle().bigText("$text. Available balance $95.50"))
@@ -100,6 +102,23 @@ class CaptureTest {
         // On reconnect, much later: the shade still holds that post, plus one posted while we were down.
         assertFalse(post(postTime = 1_000_000))
         assertTrue(post(text = "You spent $30.00 at Fuel", postTime = 1_000_000 + 60 * DUPLICATE_WINDOW_MS))
+        assertEquals(2, saved().size)
+    }
+
+    @Test
+    fun `re-post long after with the same when is deduped, same text with a new when is kept`() {
+        assertTrue(post(postTime = 1_000_000, whenTime = 1_000_000))
+        // App re-posts the old message after a reboot: new post time, same `when`.
+        assertFalse(post(postTime = 1_000_000 + 10 * DUPLICATE_WINDOW_MS, whenTime = 1_000_000))
+        // Genuine identical purchase later: new `when`.
+        assertTrue(post(postTime = 1_000_000 + 20 * DUPLICATE_WINDOW_MS, whenTime = 1_000_000 + 20 * DUPLICATE_WINDOW_MS))
+        assertEquals(2, saved().size)
+    }
+
+    @Test
+    fun `when of zero never matches`() {
+        assertTrue(post(postTime = 1_000_000, whenTime = 0))
+        assertTrue(post(postTime = 1_000_000 + 10 * DUPLICATE_WINDOW_MS, whenTime = 0))
         assertEquals(2, saved().size)
     }
 

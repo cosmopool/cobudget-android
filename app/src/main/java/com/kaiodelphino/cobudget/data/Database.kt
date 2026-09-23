@@ -1,6 +1,8 @@
 package com.kaiodelphino.cobudget.data
 
 import android.content.Context
+import androidx.room.AutoMigration
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -31,8 +33,14 @@ data class CapturedNotification(
     val appLabel: String,
     /** StatusBarNotification.key — stable across re-posts of the same notification. */
     val notificationKey: String,
-    /** StatusBarNotification.postTime, epoch millis. */
+    /** StatusBarNotification.postTime, epoch millis. Changes on every re-post. */
     val postedAt: Long,
+    /**
+     * Notification.when, epoch millis: the event time the app set. Many apps keep it across
+     * re-posts (e.g. after a reboot), so it identifies the same message long after [postedAt] moved on.
+     * 0 for rows saved before this column existed.
+     */
+    @ColumnInfo(defaultValue = "0") val notificationWhen: Long,
     val title: String?,
     val text: String?,
     val bigText: String?,
@@ -80,19 +88,32 @@ abstract class CobudgetDao {
     @Query("SELECT * FROM captured_notifications WHERE notificationKey = :key ORDER BY postedAt DESC LIMIT 1")
     protected abstract suspend fun latestForKey(key: String): CapturedNotification?
 
+    @Query(
+        "SELECT EXISTS(SELECT 1 FROM captured_notifications " +
+            "WHERE notificationKey = :key AND contentHash = :contentHash AND notificationWhen = :notificationWhen)"
+    )
+    protected abstract suspend fun existsWithWhen(key: String, contentHash: String, notificationWhen: Long): Boolean
+
     @Insert
     protected abstract suspend fun insert(notification: CapturedNotification): Long
 
     /**
-     * Saves the notification unless it is a re-post: the latest row with the same key has identical
-     * content and was posted within [DUPLICATE_WINDOW_MS]. Returns true if saved.
+     * Saves the notification unless it is a re-post. Returns true if saved. It's a re-post when:
+     * - a row has the same key, content and `when`, no matter how much later this arrives
+     *   (apps re-post old notifications after a reboot or a new message, keeping `when`); or
+     * - the latest row with the same key has identical content and was posted within
+     *   [DUPLICATE_WINDOW_MS] (for apps that reset `when` on every post).
      *
-     * This also covers the catch-up on reconnect: a post we already saved comes back with the same
-     * post time (gap 0), and the shade only ever holds the newest post per key, so it always
-     * compares against the right row.
+     * This also covers the catch-up on reconnect: a post we already saved comes back unchanged.
      */
     @Transaction
     open suspend fun insertIfNew(notification: CapturedNotification): Boolean {
+        // when = 0 means "not set" (or a legacy row); matching on it would merge unrelated posts forever.
+        if (notification.notificationWhen != 0L &&
+            existsWithWhen(notification.notificationKey, notification.contentHash, notification.notificationWhen)
+        ) {
+            return false
+        }
         val latest = latestForKey(notification.notificationKey)
         if (latest != null &&
             latest.contentHash == notification.contentHash &&
@@ -105,7 +126,12 @@ abstract class CobudgetDao {
     }
 }
 
-@Database(entities = [CapturedNotification::class, MonitoredApp::class], version = 1, exportSchema = true)
+@Database(
+    entities = [CapturedNotification::class, MonitoredApp::class],
+    version = 2,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    exportSchema = true,
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): CobudgetDao
 
