@@ -14,7 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 private val Green = Color(0xFF1B6E4B)
 
 @Composable
-fun CoBudgetTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun CobudgetTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     val context = LocalContext.current
     val colors = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->

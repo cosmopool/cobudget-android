@@ -29,26 +29,26 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.kaiodelphino.cobudget.CoBudgetApp
+import com.kaiodelphino.cobudget.CobudgetApp
 import com.kaiodelphino.cobudget.capture.NotificationCaptureService
 import com.kaiodelphino.cobudget.ui.access.AccessBanner
 import com.kaiodelphino.cobudget.ui.apps.AppsScreen
 import com.kaiodelphino.cobudget.ui.apps.AppsViewModel
 import com.kaiodelphino.cobudget.ui.messages.MessagesScreen
 import com.kaiodelphino.cobudget.ui.messages.MessagesViewModel
-import com.kaiodelphino.cobudget.ui.theme.CoBudgetTheme
+import com.kaiodelphino.cobudget.ui.theme.CobudgetTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val dao = (application as CoBudgetApp).db.dao()
+        val dao = (application as CobudgetApp).db.dao()
         val factory = viewModelFactory {
             initializer { MessagesViewModel(dao) }
             initializer { AppsViewModel(dao, application) }
         }
         setContent {
-            CoBudgetTheme {
+            CobudgetTheme {
                 MainScreen(
                     messagesViewModel = viewModel(factory = factory),
                     appsViewModel = viewModel(factory = factory),
@@ -73,7 +73,7 @@ private fun MainScreen(messagesViewModel: MessagesViewModel, appsViewModel: Apps
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("CoBudget") }) },
+        topBar = { TopAppBar(title = { Text("Cobudget") }) },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(

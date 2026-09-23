@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kaiodelphino.cobudget.data.CapturedNotification
 import com.kaiodelphino.cobudget.data.MonitoredApp
-import com.kaiodelphino.cobudget.data.CoBudgetDao
+import com.kaiodelphino.cobudget.data.CobudgetDao
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +17,7 @@ data class MessagesUiState(
     val selectedPackage: String? = null,
 )
 
-class MessagesViewModel(dao: CoBudgetDao) : ViewModel() {
+class MessagesViewModel(dao: CobudgetDao) : ViewModel() {
 
     private val selectedPackage = MutableStateFlow<String?>(null)
 

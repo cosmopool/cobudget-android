@@ -60,7 +60,7 @@ data class MonitoredApp(
 )
 
 @Dao
-abstract class CoBudgetDao {
+abstract class CobudgetDao {
 
     @Query("SELECT * FROM captured_notifications ORDER BY postedAt DESC")
     abstract fun observeNotifications(): Flow<List<CapturedNotification>>
@@ -103,7 +103,7 @@ abstract class CoBudgetDao {
 
 @Database(entities = [CapturedNotification::class, MonitoredApp::class], version = 1, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
-    abstract fun dao(): CoBudgetDao
+    abstract fun dao(): CobudgetDao
 
     companion object {
         fun build(context: Context): AppDatabase =

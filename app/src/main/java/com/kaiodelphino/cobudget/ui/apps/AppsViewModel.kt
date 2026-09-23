@@ -3,7 +3,7 @@ package com.kaiodelphino.cobudget.ui.apps
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kaiodelphino.cobudget.data.CoBudgetDao
+import com.kaiodelphino.cobudget.data.CobudgetDao
 import com.kaiodelphino.cobudget.data.InstalledApp
 import com.kaiodelphino.cobudget.data.MonitoredApp
 import com.kaiodelphino.cobudget.data.loadLauncherApps
@@ -23,7 +23,7 @@ data class AppsUiState(
 )
 
 class AppsViewModel(
-    private val dao: CoBudgetDao,
+    private val dao: CobudgetDao,
     /** Application context. */
     private val context: Context,
 ) : ViewModel() {

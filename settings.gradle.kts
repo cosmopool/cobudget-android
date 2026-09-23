@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CoBudget"
+rootProject.name = "Cobudget"
 include(":app")

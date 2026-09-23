@@ -11,9 +11,9 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
-import com.kaiodelphino.cobudget.CoBudgetApp
+import com.kaiodelphino.cobudget.CobudgetApp
 import com.kaiodelphino.cobudget.data.CapturedNotification
-import com.kaiodelphino.cobudget.data.CoBudgetDao
+import com.kaiodelphino.cobudget.data.CobudgetDao
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,7 +32,7 @@ class NotificationCaptureService : NotificationListenerService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        val dao = (application as CoBudgetApp).db.dao()
+        val dao = (application as CobudgetApp).db.dao()
         scope.launch {
             runCatching { capture(dao, sbn, ownPackage = packageName) }
                 .onFailure { Log.e(TAG, "Failed to capture notification from ${sbn.packageName}", it) }
@@ -56,7 +56,7 @@ class NotificationCaptureService : NotificationListenerService() {
          * The whole capture pipeline: filter noise, check the app is monitored, extract the text
          * and extras, then save unless it's a re-post. Returns true if a row was saved.
          */
-        suspend fun capture(dao: CoBudgetDao, sbn: StatusBarNotification, ownPackage: String): Boolean {
+        suspend fun capture(dao: CobudgetDao, sbn: StatusBarNotification, ownPackage: String): Boolean {
             if (sbn.packageName == ownPackage) return false
 
             // Group summaries and ongoing notifications (media, downloads, foreground services) are noise.

@@ -24,7 +24,7 @@ fun AccessBanner(onGrant: () -> Unit, modifier: Modifier = Modifier) {
             Text("Notification access is off", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(4.dp))
             Text(
-                "CoBudget needs notification access to read messages from the apps you monitor. " +
+                "Cobudget needs notification access to read messages from the apps you monitor. " +
                     "If the toggle is greyed out, open App info → ⋮ → Allow restricted settings first.",
                 style = MaterialTheme.typography.bodyMedium,
             )
