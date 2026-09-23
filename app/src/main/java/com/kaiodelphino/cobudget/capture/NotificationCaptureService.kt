@@ -39,6 +39,24 @@ class NotificationCaptureService : NotificationListenerService() {
         }
     }
 
+    /**
+     * Catch-up: anything posted while we were disconnected (access toggled off, OEM battery killer,
+     * before first unlock) is lost unless it's still in the shade. Feed what's there through the
+     * normal pipeline; posts we already saved are skipped by the dedupe in insertIfNew.
+     */
+    override fun onListenerConnected() {
+        val dao = (application as CobudgetApp).db.dao()
+        scope.launch {
+            val active = runCatching { activeNotifications }
+                .onFailure { Log.e(TAG, "Failed to read active notifications", it) }
+                .getOrNull() ?: return@launch
+            for (sbn in active.sortedBy { it.postTime }) {
+                runCatching { capture(dao, sbn, ownPackage = packageName) }
+                    .onFailure { Log.e(TAG, "Failed to catch up notification from ${sbn.packageName}", it) }
+            }
+        }
+    }
+
     override fun onListenerDisconnected() {
         // The system can unbind us (e.g. after an app update); ask to be bound again.
         requestRebind(ComponentName(this, NotificationCaptureService::class.java))

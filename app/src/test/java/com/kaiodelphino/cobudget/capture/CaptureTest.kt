@@ -92,6 +92,17 @@ class CaptureTest {
         assertEquals(3, saved().size)
     }
 
+    @Test
+    fun `catch-up re-reading posts from the shade saves only the ones missed`() {
+        // Captured live before the service got disconnected.
+        assertTrue(post(postTime = 1_000_000))
+
+        // On reconnect, much later: the shade still holds that post, plus one posted while we were down.
+        assertFalse(post(postTime = 1_000_000))
+        assertTrue(post(text = "You spent $30.00 at Fuel", postTime = 1_000_000 + 60 * DUPLICATE_WINDOW_MS))
+        assertEquals(2, saved().size)
+    }
+
     private companion object {
         const val BANK = "com.bank"
     }

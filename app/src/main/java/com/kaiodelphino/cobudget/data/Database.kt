@@ -86,6 +86,10 @@ abstract class CobudgetDao {
     /**
      * Saves the notification unless it is a re-post: the latest row with the same key has identical
      * content and was posted within [DUPLICATE_WINDOW_MS]. Returns true if saved.
+     *
+     * This also covers the catch-up on reconnect: a post we already saved comes back with the same
+     * post time (gap 0), and the shade only ever holds the newest post per key, so it always
+     * compares against the right row.
      */
     @Transaction
     open suspend fun insertIfNew(notification: CapturedNotification): Boolean {
