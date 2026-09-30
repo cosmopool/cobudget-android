@@ -72,7 +72,7 @@ data class MonitoredApp(
 @Dao
 abstract class CobudgetDao {
 
-    @Query("SELECT * FROM captured_notifications ORDER BY postedAt DESC")
+    @Query("SELECT * FROM captured_notifications WHERE dismissed = 0 ORDER BY postedAt DESC")
     abstract fun observeNotifications(): Flow<List<CapturedNotification>>
 
     @Query("UPDATE captured_notifications SET dismissed = 1 WHERE id = :id")
