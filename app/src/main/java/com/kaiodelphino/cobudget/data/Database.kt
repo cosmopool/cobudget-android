@@ -53,6 +53,8 @@ data class CapturedNotification(
     val extrasJson: String,
     /** Hash of the visible text fields, used for dedupe. */
     val contentHash: String,
+    /** True after the user taps dismiss; kept in the table but hidden from the list. */
+    @ColumnInfo(defaultValue = "0") val dismissed: Boolean = false,
 ) {
     /** The most complete human-readable body available. */
     val body: String?
@@ -72,6 +74,9 @@ abstract class CobudgetDao {
 
     @Query("SELECT * FROM captured_notifications ORDER BY postedAt DESC")
     abstract fun observeNotifications(): Flow<List<CapturedNotification>>
+
+    @Query("UPDATE captured_notifications SET dismissed = 1 WHERE id = :id")
+    abstract suspend fun dismiss(id: Long)
 
     @Query("SELECT * FROM monitored_apps ORDER BY label COLLATE NOCASE")
     abstract fun observeMonitoredApps(): Flow<List<MonitoredApp>>
@@ -128,8 +133,8 @@ abstract class CobudgetDao {
 
 @Database(
     entities = [CapturedNotification::class, MonitoredApp::class],
-    version = 2,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    version = 3,
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {

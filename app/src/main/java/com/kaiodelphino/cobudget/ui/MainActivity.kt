@@ -98,7 +98,7 @@ private fun MainScreen(messagesViewModel: MessagesViewModel, appsViewModel: Apps
             when (tab) {
                 Tab.Messages -> {
                     val state by messagesViewModel.state.collectAsStateWithLifecycle()
-                    MessagesScreen(state, onSelectApp = messagesViewModel::select)
+                    MessagesScreen(state, onSelectApp = messagesViewModel::select, onDismiss = messagesViewModel::dismiss)
                 }
                 Tab.Apps -> {
                     val state by appsViewModel.state.collectAsStateWithLifecycle()

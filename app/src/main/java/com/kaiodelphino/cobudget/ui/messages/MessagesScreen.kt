@@ -17,9 +17,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,7 +47,12 @@ import java.time.format.FormatStyle
 private val timeFormat = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withZone(ZoneId.systemDefault())
 
 @Composable
-fun MessagesScreen(state: MessagesUiState, onSelectApp: (String?) -> Unit, modifier: Modifier = Modifier) {
+fun MessagesScreen(
+    state: MessagesUiState,
+    onSelectApp: (String?) -> Unit,
+    onDismiss: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier.fillMaxSize()) {
         if (state.apps.isNotEmpty()) {
             Row(
@@ -67,14 +76,14 @@ fun MessagesScreen(state: MessagesUiState, onSelectApp: (String?) -> Unit, modif
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(state.messages, key = { it.id }) { MessageCard(it) }
+                items(state.messages, key = { it.id }) { MessageCard(it, onDismiss = { onDismiss(it.id) }) }
             }
         }
     }
 }
 
 @Composable
-private fun MessageCard(message: CapturedNotification) {
+private fun MessageCard(message: CapturedNotification, onDismiss: () -> Unit) {
     var expanded by rememberSaveable(message.id) { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth().animateContentSize().clickable { expanded = !expanded }) {
         Column(Modifier.padding(16.dp)) {
@@ -88,6 +97,9 @@ private fun MessageCard(message: CapturedNotification) {
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Dismiss")
                 }
             }
             message.title?.let {

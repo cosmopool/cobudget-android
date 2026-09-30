@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class MessagesUiState(
     val messages: List<CapturedNotification> = emptyList(),
@@ -17,7 +18,7 @@ data class MessagesUiState(
     val selectedPackage: String? = null,
 )
 
-class MessagesViewModel(dao: CobudgetDao) : ViewModel() {
+class MessagesViewModel(private val dao: CobudgetDao) : ViewModel() {
 
     private val selectedPackage = MutableStateFlow<String?>(null)
 
@@ -32,5 +33,9 @@ class MessagesViewModel(dao: CobudgetDao) : ViewModel() {
 
     fun select(packageName: String?) {
         selectedPackage.value = packageName
+    }
+
+    fun dismiss(id: Long) {
+        viewModelScope.launch { dao.dismiss(id) }
     }
 }
