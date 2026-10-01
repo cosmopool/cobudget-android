@@ -141,7 +141,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): CobudgetDao
 
     companion object {
+        const val DB_NAME = "cobudget.db"
+
         fun build(context: Context): AppDatabase =
-            Room.databaseBuilder(context, AppDatabase::class.java, "cobudget.db").build()
+            Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME).build()
     }
 }
