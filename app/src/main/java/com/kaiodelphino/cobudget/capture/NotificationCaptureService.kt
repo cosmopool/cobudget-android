@@ -14,18 +14,27 @@ import androidx.core.app.NotificationManagerCompat
 import com.kaiodelphino.cobudget.CobudgetApp
 import com.kaiodelphino.cobudget.data.CapturedNotification
 import com.kaiodelphino.cobudget.data.CobudgetDao
+import com.kaiodelphino.cobudget.data.GendaPost
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.security.MessageDigest
+import java.time.Instant
 
 /**
  * Receives every notification posted on the device once the user grants Notification access,
- * and saves the ones coming from apps the user chose to monitor.
+ * and saves the ones coming from apps the user chose to monitor. Every non-noise post, from any
+ * app, is also queued for genda when its URL is set in Settings.
  */
 class NotificationCaptureService : NotificationListenerService() {
 
@@ -34,8 +43,10 @@ class NotificationCaptureService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val dao = (application as CobudgetApp).db.dao()
         scope.launch {
-            runCatching { capture(dao, sbn, ownPackage = packageName) }
-                .onFailure { Log.e(TAG, "Failed to capture notification from ${sbn.packageName}", it) }
+            runCatching {
+                capture(dao, sbn, ownPackage = packageName, context = application)
+                flushGenda(application, dao)
+            }.onFailure { Log.e(TAG, "Failed to capture notification from ${sbn.packageName}", it) }
         }
     }
 
@@ -49,11 +60,12 @@ class NotificationCaptureService : NotificationListenerService() {
         scope.launch {
             val active = runCatching { activeNotifications }
                 .onFailure { Log.e(TAG, "Failed to read active notifications", it) }
-                .getOrNull() ?: return@launch
+                .getOrNull().orEmpty()
             for (sbn in active.sortedBy { it.postTime }) {
-                runCatching { capture(dao, sbn, ownPackage = packageName) }
+                runCatching { capture(dao, sbn, ownPackage = packageName, context = application) }
                     .onFailure { Log.e(TAG, "Failed to catch up notification from ${sbn.packageName}", it) }
             }
+            runCatching { flushGenda(application, dao) }.onFailure { Log.e(TAG, "Failed to flush genda outbox", it) }
         }
     }
 
@@ -70,11 +82,17 @@ class NotificationCaptureService : NotificationListenerService() {
     companion object {
         private const val TAG = "NotificationCapture"
 
+        /** SharedPreferences file holding genda's "url" and "token". An empty url turns sending off. */
+        const val GENDA_PREFS = "genda"
+
+        private val gendaLock = Mutex()
+
         /**
-         * The whole capture pipeline: filter noise, check the app is monitored, extract the text
-         * and extras, then save unless it's a re-post. Returns true if a row was saved.
+         * The whole capture pipeline: filter noise, extract the text and extras, save it unless the
+         * app is not monitored or it's a re-post, then queue it for genda (any app; needs [context]).
+         * Returns true if a row was saved.
          */
-        suspend fun capture(dao: CobudgetDao, sbn: StatusBarNotification, ownPackage: String): Boolean {
+        suspend fun capture(dao: CobudgetDao, sbn: StatusBarNotification, ownPackage: String, context: Context? = null): Boolean {
             if (sbn.packageName == ownPackage) return false
 
             // Group summaries and ongoing notifications (media, downloads, foreground services) are noise.
@@ -82,8 +100,6 @@ class NotificationCaptureService : NotificationListenerService() {
             if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return false
             if (n.flags and Notification.FLAG_FOREGROUND_SERVICE != 0) return false
             if (sbn.isOngoing) return false
-
-            val app = dao.monitoredApp(sbn.packageName) ?: return false
 
             val extras = n.extras
             fun textOf(key: String) = extras.getCharSequence(key)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
@@ -104,7 +120,8 @@ class NotificationCaptureService : NotificationListenerService() {
             }
             val contentHash = digest.digest().joinToString("") { "%02x".format(it) }
 
-            return dao.insertIfNew(
+            val app = dao.monitoredApp(sbn.packageName)
+            val saved = app != null && dao.insertIfNew(
                 CapturedNotification(
                     packageName = sbn.packageName,
                     appLabel = app.label,
@@ -122,6 +139,65 @@ class NotificationCaptureService : NotificationListenerService() {
                     contentHash = contentHash,
                 )
             )
+
+            if (context != null && context.getSharedPreferences(GENDA_PREFS, Context.MODE_PRIVATE).getString("url", "")!!.isNotEmpty()) {
+                val pm = context.packageManager
+                val label = runCatching { pm.getApplicationLabel(pm.getApplicationInfo(sbn.packageName, 0)).toString() }
+                    .getOrDefault(sbn.packageName)
+                var extId = "${sbn.key}|$contentHash"
+                if (extId.toByteArray().size > 128) {
+                    extId = MessageDigest.getInstance("SHA-256").digest(extId.toByteArray()).joinToString("") { "%02x".format(it) }
+                }
+                val body = ByteArrayOutputStream()
+                DataOutputStream(body).apply {
+                    writeByte(0x86) // msgpack fixmap of 6 entries; every key and value is a str32
+                    for (s in listOf(
+                        "source", "notif",
+                        "app", label,
+                        "title", title ?: "",
+                        "text", bigText ?: textLines ?: text ?: subText ?: "",
+                        "time", Instant.ofEpochSecond(sbn.postTime / 1000).toString(),
+                        "ext_id", extId,
+                    )) {
+                        val bytes = s.toByteArray()
+                        writeByte(0xdb)
+                        writeInt(bytes.size)
+                        write(bytes)
+                    }
+                }
+                dao.enqueueGenda(GendaPost(body = body.toByteArray()))
+            }
+            return saved
+        }
+
+        /**
+         * POSTs queued posts to genda oldest-first. 2xx and 400 (never succeeds) delete the row;
+         * anything else (401, 5xx, network error) keeps it and stops until the next flush.
+         */
+        suspend fun flushGenda(context: Context, dao: CobudgetDao) {
+            gendaLock.withLock {
+                val prefs = context.getSharedPreferences(GENDA_PREFS, Context.MODE_PRIVATE)
+                val url = prefs.getString("url", "")!!.trimEnd('/')
+                val token = prefs.getString("token", "")!!
+                if (url.isEmpty()) return
+                while (true) {
+                    val post = dao.oldestGenda() ?: return
+                    val code = runCatching {
+                        val conn = URL("$url/ingest").openConnection() as HttpURLConnection
+                        conn.connectTimeout = 10_000
+                        conn.readTimeout = 30_000 // genda may wait up to 30 s on its classifier
+                        conn.requestMethod = "POST"
+                        conn.doOutput = true
+                        conn.setRequestProperty("Content-Type", "application/msgpack")
+                        if (token.isNotEmpty()) conn.setRequestProperty("Authorization", "Bearer $token")
+                        conn.outputStream.use { it.write(post.body) }
+                        conn.responseCode.also { conn.disconnect() }
+                    }.getOrElse { Log.w(TAG, "genda unreachable", it); return }
+                    if (code == 400) Log.w(TAG, "genda rejected a post (400), dropping it")
+                    else if (code !in 200..299) return
+                    dao.deleteGenda(post.id)
+                }
+            }
         }
 
         /** Serializes text, primitives and nested bundles (e.g. MessagingStyle messages); skips bitmaps etc. */

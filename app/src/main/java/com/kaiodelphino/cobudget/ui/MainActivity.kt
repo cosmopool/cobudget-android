@@ -134,6 +134,9 @@ private fun MainScreen(
                                 }
                             }
                         },
+                        gendaUrl = settingsViewModel.gendaUrl,
+                        gendaToken = settingsViewModel.gendaToken,
+                        onGendaChange = settingsViewModel::setGenda,
                     )
                 }
             }

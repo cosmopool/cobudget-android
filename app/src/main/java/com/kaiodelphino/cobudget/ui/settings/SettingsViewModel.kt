@@ -1,12 +1,15 @@
 package com.kaiodelphino.cobudget.ui.settings
 
+import android.content.Context
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kaiodelphino.cobudget.CobudgetApp
+import com.kaiodelphino.cobudget.capture.NotificationCaptureService
 import com.kaiodelphino.cobudget.data.exportBackup
 import com.kaiodelphino.cobudget.data.importBackup
 import kotlinx.coroutines.launch
@@ -15,6 +18,20 @@ class SettingsViewModel(private val app: CobudgetApp) : ViewModel() {
 
     var status: String? by mutableStateOf(null)
         private set
+
+    private val genda = app.getSharedPreferences(NotificationCaptureService.GENDA_PREFS, Context.MODE_PRIVATE)
+
+    var gendaUrl: String by mutableStateOf(genda.getString("url", "")!!)
+        private set
+
+    var gendaToken: String by mutableStateOf(genda.getString("token", "")!!)
+        private set
+
+    fun setGenda(url: String, token: String) {
+        gendaUrl = url
+        gendaToken = token
+        genda.edit { putString("url", url).putString("token", token) }
+    }
 
     fun export(uri: Uri) {
         viewModelScope.launch {

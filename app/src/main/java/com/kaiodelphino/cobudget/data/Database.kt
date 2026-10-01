@@ -69,8 +69,21 @@ data class MonitoredApp(
     val addedAt: Long,
 )
 
+/** A msgpack body waiting to be POSTed to genda's /ingest. Deleted once genda accepts or rejects it. */
+@Entity(tableName = "genda_outbox")
+class GendaPost(@PrimaryKey(autoGenerate = true) val id: Long = 0, val body: ByteArray)
+
 @Dao
 abstract class CobudgetDao {
+
+    @Insert
+    abstract suspend fun enqueueGenda(post: GendaPost)
+
+    @Query("SELECT * FROM genda_outbox ORDER BY id LIMIT 1")
+    abstract suspend fun oldestGenda(): GendaPost?
+
+    @Query("DELETE FROM genda_outbox WHERE id = :id")
+    abstract suspend fun deleteGenda(id: Long)
 
     @Query("SELECT * FROM captured_notifications WHERE dismissed = 0 ORDER BY postedAt DESC")
     abstract fun observeNotifications(): Flow<List<CapturedNotification>>
@@ -132,9 +145,9 @@ abstract class CobudgetDao {
 }
 
 @Database(
-    entities = [CapturedNotification::class, MonitoredApp::class],
-    version = 3,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
+    entities = [CapturedNotification::class, MonitoredApp::class, GendaPost::class],
+    version = 4,
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
