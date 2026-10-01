@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -15,6 +16,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -24,7 +26,8 @@ fun SettingsScreen(
     onImport: (Uri) -> Unit,
     gendaUrl: String,
     gendaToken: String,
-    onGendaChange: (url: String, token: String) -> Unit,
+    gendaPort: String,
+    onGendaChange: (url: String, token: String, port: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
@@ -43,7 +46,15 @@ fun SettingsScreen(
         }
         status?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         Text("genda", style = MaterialTheme.typography.titleMedium)
-        OutlinedTextField(gendaUrl, { onGendaChange(it, gendaToken) }, Modifier.fillMaxWidth(), label = { Text("URL") }, singleLine = true)
-        OutlinedTextField(gendaToken, { onGendaChange(gendaUrl, it) }, Modifier.fillMaxWidth(), label = { Text("Token") }, singleLine = true)
+        OutlinedTextField(gendaUrl, { onGendaChange(it, gendaToken, gendaPort) }, Modifier.fillMaxWidth(), label = { Text("URL") }, singleLine = true)
+        OutlinedTextField(
+            gendaPort,
+            { onGendaChange(gendaUrl, gendaToken, it.filter(Char::isDigit).take(5)) },
+            Modifier.fillMaxWidth(),
+            label = { Text("Port (empty = the URL's)") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        )
+        OutlinedTextField(gendaToken, { onGendaChange(gendaUrl, it, gendaPort) }, Modifier.fillMaxWidth(), label = { Text("Token") }, singleLine = true)
     }
 }

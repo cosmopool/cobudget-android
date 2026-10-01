@@ -136,6 +136,7 @@ private fun MainScreen(
                         },
                         gendaUrl = settingsViewModel.gendaUrl,
                         gendaToken = settingsViewModel.gendaToken,
+                        gendaPort = settingsViewModel.gendaPort,
                         onGendaChange = settingsViewModel::setGenda,
                     )
                 }

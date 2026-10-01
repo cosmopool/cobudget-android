@@ -99,7 +99,7 @@ class GendaTest {
     @Test
     fun `posts a notification from an unmonitored app to genda as a msgpack map`() {
         // Pasted from the phone keyboard: stray spaces must not break the URL or the token.
-        SettingsViewModel(app).setGenda(" $gendaUrl ", " secret ")
+        SettingsViewModel(app).setGenda(" $gendaUrl ", " secret ", "")
         val sbn = post { setStyle(Notification.BigTextStyle().bigText("Lunch tomorrow? At noon")) }
 
         val (map, auth) = received.single()
@@ -118,7 +118,7 @@ class GendaTest {
 
     @Test
     fun `noise is not sent`() {
-        SettingsViewModel(app).setGenda(gendaUrl, "")
+        SettingsViewModel(app).setGenda(gendaUrl, "", "")
         post { setGroup("g").setGroupSummary(true) }
         post { setOngoing(true) }
         post { setContentTitle(null).setContentText(null) }
@@ -128,7 +128,7 @@ class GendaTest {
 
     @Test
     fun `a failed post stays queued and goes out on a later flush`() {
-        SettingsViewModel(app).setGenda(gendaUrl, "")
+        SettingsViewModel(app).setGenda(gendaUrl, "", "")
         status = 500
         post()
         assertEquals(1, received.size)
@@ -144,8 +144,16 @@ class GendaTest {
     }
 
     @Test
+    fun `a set port replaces the one in the URL`() {
+        // The URL carries a dead port; only the Port field points at genda.
+        SettingsViewModel(app).setGenda("http://127.0.0.1:1/", "", " ${genda.localPort} ")
+        post()
+        assertEquals(1, received.size)
+    }
+
+    @Test
     fun `a post genda rejects as malformed is dropped`() {
-        SettingsViewModel(app).setGenda(gendaUrl, "")
+        SettingsViewModel(app).setGenda(gendaUrl, "", "")
         status = 400
         post()
         status = 200
@@ -156,7 +164,7 @@ class GendaTest {
     @Test
     fun `nothing is queued or sent while the URL is empty`() {
         post()
-        SettingsViewModel(app).setGenda(gendaUrl, "")
+        SettingsViewModel(app).setGenda(gendaUrl, "", "")
         flush()
         assertTrue(received.isEmpty())
     }

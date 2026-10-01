@@ -179,11 +179,14 @@ class NotificationCaptureService : NotificationListenerService() {
                 val prefs = context.getSharedPreferences(GENDA_PREFS, Context.MODE_PRIVATE)
                 val url = prefs.getString("url", "")!!.trim().trimEnd('/')
                 val token = prefs.getString("token", "")!!.trim()
+                // A set Port replaces the URL's own; empty or out of range keeps the URL as typed.
+                val port = prefs.getString("port", "")!!.trim().toIntOrNull()?.takeIf { it in 1..65535 }
                 if (url.isEmpty()) return
                 while (true) {
                     val post = dao.oldestGenda() ?: return
                     val code = runCatching {
-                        val conn = URL("$url/ingest").openConnection() as HttpURLConnection
+                        val target = URL("$url/ingest").let { if (port == null) it else URL(it.protocol, it.host, port, it.file) }
+                        val conn = target.openConnection() as HttpURLConnection
                         try {
                             conn.connectTimeout = 10_000
                             conn.readTimeout = 30_000 // genda may wait up to 30 s on its classifier

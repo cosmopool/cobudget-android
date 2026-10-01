@@ -27,10 +27,14 @@ class SettingsViewModel(private val app: CobudgetApp) : ViewModel() {
     var gendaToken: String by mutableStateOf(genda.getString("token", "")!!)
         private set
 
-    fun setGenda(url: String, token: String) {
+    var gendaPort: String by mutableStateOf(genda.getString("port", "")!!)
+        private set
+
+    fun setGenda(url: String, token: String, port: String) {
         gendaUrl = url
         gendaToken = token
-        genda.edit { putString("url", url).putString("token", token) }
+        gendaPort = port
+        genda.edit { putString("url", url).putString("token", token).putString("port", port) }
     }
 
     fun export(uri: Uri) {
