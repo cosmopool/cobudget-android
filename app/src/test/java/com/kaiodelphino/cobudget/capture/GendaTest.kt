@@ -98,7 +98,8 @@ class GendaTest {
 
     @Test
     fun `posts a notification from an unmonitored app to genda as a msgpack map`() {
-        SettingsViewModel(app).setGenda(gendaUrl, "secret")
+        // Pasted from the phone keyboard: stray spaces must not break the URL or the token.
+        SettingsViewModel(app).setGenda(" $gendaUrl ", " secret ")
         val sbn = post { setStyle(Notification.BigTextStyle().bigText("Lunch tomorrow? At noon")) }
 
         val (map, auth) = received.single()

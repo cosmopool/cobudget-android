@@ -140,7 +140,7 @@ class NotificationCaptureService : NotificationListenerService() {
                 )
             )
 
-            if (context != null && context.getSharedPreferences(GENDA_PREFS, Context.MODE_PRIVATE).getString("url", "")!!.isNotEmpty()) {
+            if (context != null && context.getSharedPreferences(GENDA_PREFS, Context.MODE_PRIVATE).getString("url", "")!!.isNotBlank()) {
                 val pm = context.packageManager
                 val label = runCatching { pm.getApplicationLabel(pm.getApplicationInfo(sbn.packageName, 0)).toString() }
                     .getOrDefault(sbn.packageName)
@@ -177,21 +177,25 @@ class NotificationCaptureService : NotificationListenerService() {
         suspend fun flushGenda(context: Context, dao: CobudgetDao) {
             gendaLock.withLock {
                 val prefs = context.getSharedPreferences(GENDA_PREFS, Context.MODE_PRIVATE)
-                val url = prefs.getString("url", "")!!.trimEnd('/')
-                val token = prefs.getString("token", "")!!
+                val url = prefs.getString("url", "")!!.trim().trimEnd('/')
+                val token = prefs.getString("token", "")!!.trim()
                 if (url.isEmpty()) return
                 while (true) {
                     val post = dao.oldestGenda() ?: return
                     val code = runCatching {
                         val conn = URL("$url/ingest").openConnection() as HttpURLConnection
-                        conn.connectTimeout = 10_000
-                        conn.readTimeout = 30_000 // genda may wait up to 30 s on its classifier
-                        conn.requestMethod = "POST"
-                        conn.doOutput = true
-                        conn.setRequestProperty("Content-Type", "application/msgpack")
-                        if (token.isNotEmpty()) conn.setRequestProperty("Authorization", "Bearer $token")
-                        conn.outputStream.use { it.write(post.body) }
-                        conn.responseCode.also { conn.disconnect() }
+                        try {
+                            conn.connectTimeout = 10_000
+                            conn.readTimeout = 30_000 // genda may wait up to 30 s on its classifier
+                            conn.requestMethod = "POST"
+                            conn.doOutput = true
+                            conn.setRequestProperty("Content-Type", "application/msgpack")
+                            if (token.isNotEmpty()) conn.setRequestProperty("Authorization", "Bearer $token")
+                            conn.outputStream.use { it.write(post.body) }
+                            conn.responseCode
+                        } finally {
+                            conn.disconnect()
+                        }
                     }.getOrElse { Log.w(TAG, "genda unreachable", it); return }
                     if (code == 400) Log.w(TAG, "genda rejected a post (400), dropping it")
                     else if (code !in 200..299) return
