@@ -134,7 +134,6 @@ private fun MainScreen(
                                 }
                             }
                         },
-                        onReparse = settingsViewModel::reparse,
                         gendaUrl = settingsViewModel.gendaUrl,
                         gendaToken = settingsViewModel.gendaToken,
                         gendaPort = settingsViewModel.gendaPort,

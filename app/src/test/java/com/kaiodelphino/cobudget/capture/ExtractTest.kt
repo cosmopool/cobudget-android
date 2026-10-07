@@ -7,7 +7,6 @@ import android.service.notification.StatusBarNotification
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.kaiodelphino.cobudget.data.AppDatabase
-import com.kaiodelphino.cobudget.data.BankTransaction
 import com.kaiodelphino.cobudget.data.MonitoredApp
 import java.time.LocalDate
 import java.time.LocalTime
@@ -194,21 +193,6 @@ class ExtractTest {
         nubank("Compra de R$ 31,50 APROVADA em LOJA para o cartão com final 1234.", T)
         assertFalse(nubank("Compra de R$ 31,50 APROVADA em LOJA para o cartão com final 1234.", T))
         assertEquals(1, transactions().size)
-    }
-
-    @Test
-    fun `re-parse rebuilds the same transactions, dismissed notifications and refund flags included`() {
-        nubank("Compra de R$ 31,50 APROVADA em GIPL COMERCIO DE ALIME para o cartão com final 1234.", T)
-        nubank("Compra de R$ 9,94 APROVADA em DL*UberRides no seu cartão Nu Empresas.", T + MIN)
-        nubank("Compra de R$ 9,94 APROVADA em DL*UberRides no seu cartão Nu Empresas.", T + 4 * MIN)
-        nubank("A compra em DL*UberRides no valor de R$ 9,94 foi estornada no seu cartão Nu Empresas.", T + 7 * MIN)
-        runBlocking { dao.dismiss(runBlocking { dao.observeNotifications().first() }.last().id) }
-        fun normalized(rows: List<BankTransaction>) = rows.map { it.copy(id = 0) }.sortedBy { it.notificationId }
-        val before = normalized(transactions())
-
-        assertEquals(3, runBlocking { dao.rebuildTransactions() })
-        assertEquals(before, normalized(transactions()))
-        assertEquals(1, before.count { it.refunded })
     }
 
     private companion object {

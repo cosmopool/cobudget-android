@@ -77,8 +77,8 @@ data class MonitoredApp(
 )
 
 /**
- * Money read from a notification by its app's extractor (capture/Extract.kt). Rebuilt from
- * captured_notifications by [CobudgetDao.rebuildTransactions]. Named to avoid Room's @Transaction.
+ * Money read from a notification by its app's extractor (capture/Extract.kt), written once at capture.
+ * Named to avoid Room's @Transaction.
  */
 @Entity(
     tableName = "transactions",
@@ -160,15 +160,6 @@ abstract class CobudgetDao {
     @Insert
     protected abstract suspend fun insertTransaction(transaction: BankTransaction)
 
-    @Query("DELETE FROM transactions")
-    protected abstract suspend fun deleteAllTransactions()
-
-    @Query("SELECT * FROM captured_notifications ORDER BY postedAt, id")
-    protected abstract suspend fun allNotifications(): List<CapturedNotification>
-
-    @Query("SELECT COUNT(*) FROM transactions")
-    protected abstract suspend fun transactionCount(): Int
-
     @Query("UPDATE transactions SET refunded = 1 WHERE id = :id")
     protected abstract suspend fun markRefunded(id: Long)
 
@@ -192,18 +183,6 @@ abstract class CobudgetDao {
         if (t == null || t.cents <= 0) return
         val target = if (t.refunded) refundTarget(n.packageName, t.cents, t.merchant.replace(" ", ""), n.postedAt) else null
         if (target != null) markRefunded(target) else insertTransaction(t)
-    }
-
-    /**
-     * Re-parses every saved notification (dismissed too) oldest-first, so refunds meet their purchases.
-     * Returns the number of transactions. This is the canonical result: capture only differs when a
-     * purchase arrives after its refund.
-     */
-    @Transaction
-    open suspend fun rebuildTransactions(): Int {
-        deleteAllTransactions()
-        for (n in allNotifications()) saveTransaction(n)
-        return transactionCount()
     }
 
     /**
