@@ -24,6 +24,7 @@ fun SettingsScreen(
     status: String?,
     onExport: (Uri) -> Unit,
     onImport: (Uri) -> Unit,
+    onReparse: () -> Unit,
     gendaUrl: String,
     gendaToken: String,
     gendaPort: String,
@@ -43,6 +44,10 @@ fun SettingsScreen(
         }
         OutlinedButton(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
             Text("Import backup")
+        }
+        Text("Transactions", style = MaterialTheme.typography.titleMedium)
+        OutlinedButton(onClick = onReparse) {
+            Text("Re-parse notifications")
         }
         status?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         Text("genda", style = MaterialTheme.typography.titleMedium)

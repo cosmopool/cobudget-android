@@ -46,6 +46,14 @@ class SettingsViewModel(private val app: CobudgetApp) : ViewModel() {
         }
     }
 
+    /** Rebuilds the transactions table from every saved notification (after a parser fix, or for old rows). */
+    fun reparse() {
+        viewModelScope.launch {
+            status = runCatching { "Re-parsed: ${app.db.dao().rebuildTransactions()} transactions" }
+                .getOrElse { "Re-parse failed: ${it.message}" }
+        }
+    }
+
     /** Returns true when the import succeeded and the caller should restart the UI. */
     suspend fun import(uri: Uri): Boolean {
         val ok = runCatching {
