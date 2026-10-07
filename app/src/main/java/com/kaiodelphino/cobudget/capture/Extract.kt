@@ -1,5 +1,6 @@
 package com.kaiodelphino.cobudget.capture
 
+import android.util.Log
 import com.kaiodelphino.cobudget.data.BankTransaction
 import com.kaiodelphino.cobudget.data.CapturedNotification
 import java.time.Instant
@@ -11,11 +12,26 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
 /**
- * Reads money out of one notification. cents == 0 means "not a transaction";
- * refunded == true means "the purchase described here was refunded" (the DAO flags the matching purchase).
+ * Reads money out of one notification, as a suggestion for the accept page. cents == 0 means "no
+ * value found"; refunded (refundedBy == the notification's id) means "this is an estorno of the
+ * purchase described here".
  */
 fun interface Extractor {
     fun extract(n: CapturedNotification): BankTransaction
+}
+
+/** The suggestion the accept page starts from. Never throws: a parser bug just suggests nothing (cents 0). */
+fun suggest(n: CapturedNotification): BankTransaction =
+    runCatching { extractorFor(n.packageName).extract(n) }
+        .onFailure { Log.e("Extract", "extract failed for notification ${n.id}", it) }
+        .getOrElse { tx(n, "", "0", "", "") }
+
+private val TYPED_VALUE = Regex("^$WS*(?:R\\$$WS*)?(\\d{1,3}(?:\\.\\d{3}){1,4}|\\d{1,15})(?:[,.](\\d{1,2}))?$WS*$")
+
+/** A value typed by the user ("31,50", "1.234,56", "R$ 12") in centavos; 0 when it isn't one. */
+fun parseBrl(text: String): Long {
+    val m = TYPED_VALUE.matchEntire(text) ?: return 0
+    return m.groupValues[1].replace(".", "").toLong() * 100 + m.groupValues[2].padEnd(2, '0').toLong()
 }
 
 /** Banks with their own extractor never fall back to the generic one: an unknown format is not a transaction. */
@@ -82,7 +98,7 @@ private fun tx(n: CapturedNotification, text: String, int: String, dec: String, 
         date = dateIn(text, fallback),
         time = TIME.find(text)?.let { LocalTime.of(it.groupValues[1].toInt(), it.groupValues[2].toInt()) } ?: fallback.toLocalTime(),
         cents = int.replace(".", "").toLong() * 100 + dec.padEnd(2, '0').toLong(),
-        refunded = refunded,
+        refundedBy = if (refunded) n.id else 0,
     )
 }
 

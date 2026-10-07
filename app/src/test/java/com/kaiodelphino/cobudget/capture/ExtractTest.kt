@@ -22,7 +22,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/** Notifications in through the capture pipeline, rows out of the transactions table. Nubank texts are real, names anonymised. */
+/** Notifications in through the capture pipeline, the parser's suggestions out. Nubank texts are real, names anonymised. */
 @RunWith(RobolectricTestRunner::class)
 class ExtractTest {
 
@@ -64,7 +64,8 @@ class ExtractTest {
 
     private fun nubank(text: String, whenMs: Long = T) = post(NUBANK, "Nubank", text, whenMs)
 
-    private fun transactions() = runBlocking { dao.observeTransactions().first() }
+    /** What the accept page would pre-fill for every saved notification that has a value. */
+    private fun transactions() = runBlocking { dao.observeNotifications().first() }.map(::suggest).filter { it.cents > 0 }
 
     private fun savedNotifications() = runBlocking { dao.observeNotifications().first() }.size
 
@@ -124,21 +125,11 @@ class ExtractTest {
     }
 
     @Test
-    fun `a refund flags the latest matching purchase instead of adding a row`() {
-        nubank("Compra de R$ 9,94 APROVADA em DL*UberRides no seu cartão Nu Empresas.", T)
-        nubank("Compra de R$ 9,94 APROVADA em DL*UberRides no seu cartão Nu Empresas.", T + 3 * MIN)
-        nubank("A compra em DL          *UberRides no valor de R$ 9,94 foi estornada no seu cartão Nu Empresas.", T + 6 * MIN)
-
-        val rows = transactions().sortedBy { it.notificationId }
-        assertEquals(listOf(false, true), rows.map { it.refunded })
-    }
-
-    @Test
-    fun `a refund of a purchase we never saw is kept as a refunded purchase`() {
-        nubank("A compra em DL*UberRides no valor de R$ 7,02 foi estornada no seu cartão Nu Empresas.")
+    fun `a nubank estorno is read as a refund of the purchase it names`() {
+        nubank("A compra em DL          *UberRides no valor de R$ 7,02 foi estornada no seu cartão Nu Empresas.")
 
         val t = transactions().single()
-        assertEquals("DL*UberRides" to 702L, t.merchant to t.cents)
+        assertEquals("DL *UberRides" to 702L, t.merchant to t.cents)
         assertTrue(t.refunded)
     }
 
@@ -165,12 +156,11 @@ class ExtractTest {
     }
 
     @Test
-    fun `generic estorno flags the purchase by value when it names no merchant`() {
-        post(BANK, "Compra", "Compra de R$ 20,00 em LOJA", T)
-        post(BANK, "Estorno", "Estorno de R$ 20,00 efetuado", T + 3 * MIN)
+    fun `generic text with estorn is a refund, here naming no merchant`() {
+        post(BANK, "Estorno", "Estorno de R$ 20,00 efetuado", T)
 
         val t = transactions().single()
-        assertEquals("LOJA", t.merchant)
+        assertEquals("" to 2000L, t.merchant to t.cents)
         assertTrue(t.refunded)
     }
 
@@ -188,7 +178,7 @@ class ExtractTest {
     }
 
     @Test
-    fun `only saved notifications become transactions`() {
+    fun `only saved notifications are read`() {
         assertFalse(post("com.chat", "Ana", "Me passa R$ 50,00 em dinheiro"))
         nubank("Compra de R$ 31,50 APROVADA em LOJA para o cartão com final 1234.", T)
         assertFalse(nubank("Compra de R$ 31,50 APROVADA em LOJA para o cartão com final 1234.", T))
