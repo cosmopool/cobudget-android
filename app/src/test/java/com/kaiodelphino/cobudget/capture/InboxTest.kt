@@ -8,6 +8,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.kaiodelphino.cobudget.data.AppDatabase
 import com.kaiodelphino.cobudget.data.MonitoredApp
+import com.kaiodelphino.cobudget.ui.transactions.displayName
 import java.time.LocalDate
 import java.time.LocalTime
 import java.util.TimeZone
@@ -203,6 +204,31 @@ class InboxTest {
         assertEquals(listOf(txA), transactions().map { it.transaction.id })
         assertEquals(listOf(b), pending())
         assertFalse(txB in transactions().map { it.transaction.id })
+    }
+
+    @Test
+    fun `a nickname names a merchant across spacing and case, and outlives its transactions`() {
+        val nicknames = { runBlocking { dao.observeNicknames().first() }.associate { it.merchantKey to it.nickname } }
+        runBlocking { dao.setNickname("DL*UberRides", " Uber ") }
+        assertEquals("Uber", runBlocking { dao.nickname("dl          *uberrides") })
+        assertEquals(1, nicknames().size)
+
+        val txId = acceptSuggested(post("Compra de R$ 9,94 APROVADA em DL          *UberRides no seu cartão Nu Empresas."))
+        val row = transactions().single()
+        assertEquals("Uber", displayName(row.transaction.merchant, nicknames(), row.appLabel))
+        assertEquals("GIPL", displayName("GIPL", nicknames(), "Nu"))
+        assertEquals("Nu", displayName("", nicknames(), "Nu"))
+
+        runBlocking { dao.deleteTransaction(txId) }
+        acceptSuggested(post(UBER, T + 3 * MIN))
+        assertEquals("Uber", displayName(transactions().single().transaction.merchant, nicknames(), "Nu"))
+
+        runBlocking {
+            dao.setNickname("DL *UberRides", "")
+            dao.setNickname("  ", "Nothing")
+        }
+        assertTrue(nicknames().isEmpty())
+        assertEquals("DL*UberRides", displayName(transactions().single().transaction.merchant, nicknames(), "Nu"))
     }
 
     private companion object {

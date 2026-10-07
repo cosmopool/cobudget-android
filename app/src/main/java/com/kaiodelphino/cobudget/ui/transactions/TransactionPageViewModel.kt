@@ -17,6 +17,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -43,6 +44,8 @@ class TransactionPageViewModel(
     var refunded by mutableStateOf(false)
         private set
     var merchant by mutableStateOf("")
+    /** The merchant's nickname, shown instead of its text everywhere; "" = none. */
+    var nickname by mutableStateOf("")
     var value by mutableStateOf("")
     var date by mutableStateOf("")
     var time by mutableStateOf("")
@@ -52,6 +55,9 @@ class TransactionPageViewModel(
     /** Set when the page's work is done and it should close. */
     var done by mutableStateOf(false)
         private set
+
+    val nicknames: StateFlow<Map<String, String>> =
+        dao.observeNicknames().map(::nicknameMap).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     val allTags: StateFlow<List<Tag>> = dao.observeTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -69,6 +75,7 @@ class TransactionPageViewModel(
                 val match = dao.refundMatch(n)
                 if (match != 0L) refundOf = dao.transaction(match)
             }
+            nickname = dao.nickname(merchant)
         }
     }
 
@@ -99,11 +106,13 @@ class TransactionPageViewModel(
         val d = parsedDate ?: return
         val t = parsedTime ?: return
         viewModelScope.launch {
-            done = if (isEdit) {
+            val saved = if (isEdit) {
                 dao.editTransaction(transactionId, merchant, cents, d, t, tags)
             } else {
                 dao.accept(notificationId, merchant, cents, d, t, tags) != 0L
             }
+            if (saved) dao.setNickname(merchant, nickname)
+            done = saved
         }
     }
 

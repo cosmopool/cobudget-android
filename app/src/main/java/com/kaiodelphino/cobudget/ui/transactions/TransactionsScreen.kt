@@ -18,7 +18,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.kaiodelphino.cobudget.data.MerchantNickname
 import com.kaiodelphino.cobudget.data.TransactionRow
+import com.kaiodelphino.cobudget.data.merchantKey
 import com.kaiodelphino.cobudget.ui.AppIcon
 import com.kaiodelphino.cobudget.ui.messages.EmptyState
 import java.text.NumberFormat
@@ -31,8 +33,20 @@ private val dayTime = DateTimeFormatter.ofPattern("dd/MM HH:mm")
 /** Centavos as "R$ 1.234,56". */
 fun formatBrl(cents: Long): String = brl.format(cents / 100.0)
 
+/** What to show for a merchant: its nickname, else its text, else the app's label. */
+fun displayName(merchant: String, nicknames: Map<String, String>, appLabel: String): String =
+    nicknames[merchantKey(merchant)] ?: merchant.ifEmpty { appLabel }
+
+/** Merchant key → nickname, as the screens look it up. */
+fun nicknameMap(nicknames: List<MerchantNickname>): Map<String, String> = nicknames.associate { it.merchantKey to it.nickname }
+
 @Composable
-fun TransactionsScreen(rows: List<TransactionRow>, onOpen: (Long) -> Unit, modifier: Modifier = Modifier) {
+fun TransactionsScreen(
+    rows: List<TransactionRow>,
+    nicknames: Map<String, String>,
+    onOpen: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     if (rows.isEmpty()) {
         EmptyState("No transactions yet. Accept a notification in Messages.")
         return
@@ -45,7 +59,7 @@ fun TransactionsScreen(rows: List<TransactionRow>, onOpen: (Long) -> Unit, modif
                 leadingContent = { AppIcon(row.packageName) },
                 headlineContent = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(t.merchant.ifEmpty { row.appLabel })
+                        Text(displayName(t.merchant, nicknames, row.appLabel))
                         if (t.ratified) {
                             Icon(Icons.Default.Edit, contentDescription = "Corrected", Modifier.padding(start = 6.dp).size(14.dp))
                         }

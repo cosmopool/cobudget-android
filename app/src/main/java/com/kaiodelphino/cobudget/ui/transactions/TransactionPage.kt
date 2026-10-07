@@ -46,6 +46,7 @@ fun TransactionPage(vm: TransactionPageViewModel, onDone: () -> Unit, modifier: 
     LaunchedEffect(vm.done) { if (vm.done) onDone() }
     val notification = vm.notification ?: return
     val allTags by vm.allTags.collectAsStateWithLifecycle()
+    val nicknames by vm.nicknames.collectAsStateWithLifecycle()
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     Column(
@@ -64,7 +65,7 @@ fun TransactionPage(vm: TransactionPageViewModel, onDone: () -> Unit, modifier: 
         if (refundOf != null) {
             Text("Estorno of", style = MaterialTheme.typography.titleMedium)
             ListItem(
-                headlineContent = { Text(refundOf.merchant.ifEmpty { notification.appLabel }) },
+                headlineContent = { Text(displayName(refundOf.merchant, nicknames, notification.appLabel)) },
                 supportingContent = { Text("${refundOf.date} ${refundOf.time}") },
                 trailingContent = { Text(formatBrl(refundOf.cents)) },
             )
@@ -74,6 +75,11 @@ fun TransactionPage(vm: TransactionPageViewModel, onDone: () -> Unit, modifier: 
             }
         } else {
             OutlinedTextField(vm.merchant, { vm.merchant = it }, Modifier.fillMaxWidth(), label = { Text("Merchant") }, singleLine = true)
+            OutlinedTextField(
+                vm.nickname, { vm.nickname = it }, Modifier.fillMaxWidth(),
+                label = { Text("Nickname (optional)") }, singleLine = true, enabled = vm.merchant.isNotBlank(),
+                supportingText = { Text("Shown instead of the merchant on every transaction") },
+            )
             OutlinedTextField(
                 vm.value, { vm.value = it }, Modifier.fillMaxWidth(),
                 label = { Text("Value (R$)") }, singleLine = true, isError = vm.value.isNotEmpty() && vm.cents <= 0,

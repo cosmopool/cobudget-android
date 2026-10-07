@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.kaiodelphino.cobudget.capture.suggest
 import com.kaiodelphino.cobudget.data.CapturedNotification
 import com.kaiodelphino.cobudget.ui.AppIcon
+import com.kaiodelphino.cobudget.ui.transactions.displayName
 import com.kaiodelphino.cobudget.ui.transactions.formatBrl
 import org.json.JSONObject
 import java.time.Instant
@@ -75,7 +76,9 @@ fun MessagesScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(state.messages, key = { it.id }) { MessageCard(it, onDismiss = { onDismiss(it.id) }, onOpen = { onOpen(it.id) }) }
+                items(state.messages, key = { it.id }) {
+                    MessageCard(it, state.nicknames, onDismiss = { onDismiss(it.id) }, onOpen = { onOpen(it.id) })
+                }
             }
         }
     }
@@ -83,7 +86,7 @@ fun MessagesScreen(
 
 /** A pending notification; tap to accept it as a transaction, X to dismiss. */
 @Composable
-private fun MessageCard(message: CapturedNotification, onDismiss: () -> Unit, onOpen: () -> Unit) {
+private fun MessageCard(message: CapturedNotification, nicknames: Map<String, String>, onDismiss: () -> Unit, onOpen: () -> Unit) {
     val suggestion = remember(message.id) { suggest(message) }
     Card(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
         Column(Modifier.padding(16.dp)) {
@@ -112,7 +115,8 @@ private fun MessageCard(message: CapturedNotification, onDismiss: () -> Unit, on
             if (suggestion.cents > 0) {
                 Spacer(Modifier.padding(top = 8.dp))
                 Text(
-                    listOf(formatBrl(suggestion.cents), suggestion.merchant).filter(String::isNotEmpty).joinToString(" · "),
+                    listOf(formatBrl(suggestion.cents), displayName(suggestion.merchant, nicknames, ""))
+                        .filter(String::isNotEmpty).joinToString(" · "),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )

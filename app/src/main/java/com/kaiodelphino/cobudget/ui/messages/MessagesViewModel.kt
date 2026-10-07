@@ -11,11 +11,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.kaiodelphino.cobudget.ui.transactions.nicknameMap
 
 data class MessagesUiState(
     val messages: List<CapturedNotification> = emptyList(),
     val apps: List<MonitoredApp> = emptyList(),
     val selectedPackage: String? = null,
+    /** Merchant key → nickname. */
+    val nicknames: Map<String, String> = emptyMap(),
 )
 
 class MessagesViewModel(private val dao: CobudgetDao) : ViewModel() {
@@ -23,11 +26,12 @@ class MessagesViewModel(private val dao: CobudgetDao) : ViewModel() {
     private val selectedPackage = MutableStateFlow<String?>(null)
 
     val state: StateFlow<MessagesUiState> =
-        combine(dao.observePending(), dao.observeMonitoredApps(), selectedPackage) { messages, apps, selected ->
+        combine(dao.observePending(), dao.observeMonitoredApps(), selectedPackage, dao.observeNicknames()) { messages, apps, selected, nicknames ->
             MessagesUiState(
                 messages = if (selected == null) messages else messages.filter { it.packageName == selected },
                 apps = apps,
                 selectedPackage = selected,
+                nicknames = nicknameMap(nicknames),
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MessagesUiState())
 

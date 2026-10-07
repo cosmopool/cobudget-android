@@ -169,7 +169,8 @@ private fun MainScreen(
                 }
                 tab == Tab.Transactions -> {
                     val rows by transactionsViewModel.rows.collectAsStateWithLifecycle()
-                    TransactionsScreen(rows, onOpen = { editId = it })
+                    val nicknames by transactionsViewModel.nicknames.collectAsStateWithLifecycle()
+                    TransactionsScreen(rows, nicknames, onOpen = { editId = it })
                 }
                 tab == Tab.Apps -> {
                     val state by appsViewModel.state.collectAsStateWithLifecycle()
