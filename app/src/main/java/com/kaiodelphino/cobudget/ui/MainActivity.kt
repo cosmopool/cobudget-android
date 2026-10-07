@@ -3,16 +3,20 @@ package com.kaiodelphino.cobudget.ui
 import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -34,6 +38,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.launch
 import com.kaiodelphino.cobudget.CobudgetApp
+import com.kaiodelphino.cobudget.data.CobudgetDao
 import com.kaiodelphino.cobudget.capture.NotificationCaptureService
 import com.kaiodelphino.cobudget.ui.access.AccessBanner
 import com.kaiodelphino.cobudget.ui.apps.AppsScreen
@@ -43,6 +48,10 @@ import com.kaiodelphino.cobudget.ui.messages.MessagesViewModel
 import com.kaiodelphino.cobudget.ui.settings.SettingsScreen
 import com.kaiodelphino.cobudget.ui.settings.SettingsViewModel
 import com.kaiodelphino.cobudget.ui.theme.CobudgetTheme
+import com.kaiodelphino.cobudget.ui.transactions.TransactionPage
+import com.kaiodelphino.cobudget.ui.transactions.TransactionPageViewModel
+import com.kaiodelphino.cobudget.ui.transactions.TransactionsScreen
+import com.kaiodelphino.cobudget.ui.transactions.TransactionsViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,13 +60,16 @@ class MainActivity : ComponentActivity() {
         val dao = (application as CobudgetApp).db.dao()
         val factory = viewModelFactory {
             initializer { MessagesViewModel(dao) }
+            initializer { TransactionsViewModel(dao) }
             initializer { AppsViewModel(dao, application) }
             initializer { SettingsViewModel(application as CobudgetApp) }
         }
         setContent {
             CobudgetTheme {
                 MainScreen(
+                    dao = dao,
                     messagesViewModel = viewModel(factory = factory),
+                    transactionsViewModel = viewModel(factory = factory),
                     appsViewModel = viewModel(factory = factory),
                     settingsViewModel = viewModel(factory = factory),
                 )
@@ -66,18 +78,29 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tab(val label: String) { Messages("Messages"), Apps("Apps"), Settings("Settings") }
+private enum class Tab(val label: String) { Messages("Messages"), Transactions("Transactions"), Apps("Apps"), Settings("Settings") }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainScreen(
+    dao: CobudgetDao,
     messagesViewModel: MessagesViewModel,
+    transactionsViewModel: TransactionsViewModel,
     appsViewModel: AppsViewModel,
     settingsViewModel: SettingsViewModel,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var tab by rememberSaveable { mutableStateOf(Tab.Messages) }
+    // The full-screen page over the tabs: accept a pending notification, or edit a transaction. 0 = none.
+    var acceptId by rememberSaveable { mutableStateOf(0L) }
+    var editId by rememberSaveable { mutableStateOf(0L) }
+    val onPage = acceptId != 0L || editId != 0L
+    fun closePage() {
+        acceptId = 0
+        editId = 0
+    }
+    BackHandler(enabled = onPage) { closePage() }
     var accessGranted by rememberSaveable { mutableStateOf(NotificationCaptureService.isAccessGranted(context)) }
 
     // The user grants access in system settings, so re-check whenever we come back.
@@ -86,14 +109,27 @@ private fun MainScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Cobudget") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text(if (acceptId != 0L) "Accept" else if (editId != 0L) "Transaction" else "Cobudget") },
+                navigationIcon = {
+                    if (onPage) IconButton(onClick = ::closePage) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                },
+            )
+        },
         bottomBar = {
-            NavigationBar {
+            if (!onPage) NavigationBar {
                 NavigationBarItem(
                     selected = tab == Tab.Messages,
                     onClick = { tab = Tab.Messages },
                     icon = { Icon(Icons.Default.Notifications, contentDescription = null) },
                     label = { Text(Tab.Messages.label) },
+                )
+                NavigationBarItem(
+                    selected = tab == Tab.Transactions,
+                    onClick = { tab = Tab.Transactions },
+                    icon = { Icon(Icons.Default.ShoppingCart, contentDescription = null) },
+                    label = { Text(Tab.Transactions.label) },
                 )
                 NavigationBarItem(
                     selected = tab == Tab.Apps,
@@ -114,16 +150,32 @@ private fun MainScreen(
             if (!accessGranted) {
                 AccessBanner(onGrant = { context.startActivity(NotificationCaptureService.accessSettingsIntent(context)) })
             }
-            when (tab) {
-                Tab.Messages -> {
-                    val state by messagesViewModel.state.collectAsStateWithLifecycle()
-                    MessagesScreen(state, onSelectApp = messagesViewModel::select, onDismiss = messagesViewModel::dismiss)
+            when {
+                onPage -> {
+                    val vm: TransactionPageViewModel = viewModel(
+                        key = "page-$acceptId-$editId",
+                        factory = viewModelFactory { initializer { TransactionPageViewModel(dao, acceptId, editId) } },
+                    )
+                    TransactionPage(vm, onDone = ::closePage)
                 }
-                Tab.Apps -> {
+                tab == Tab.Messages -> {
+                    val state by messagesViewModel.state.collectAsStateWithLifecycle()
+                    MessagesScreen(
+                        state,
+                        onSelectApp = messagesViewModel::select,
+                        onDismiss = messagesViewModel::dismiss,
+                        onOpen = { acceptId = it },
+                    )
+                }
+                tab == Tab.Transactions -> {
+                    val rows by transactionsViewModel.rows.collectAsStateWithLifecycle()
+                    TransactionsScreen(rows, onOpen = { editId = it })
+                }
+                tab == Tab.Apps -> {
                     val state by appsViewModel.state.collectAsStateWithLifecycle()
                     AppsScreen(state, onQueryChange = appsViewModel::onQueryChange, onToggle = appsViewModel::setMonitored)
                 }
-                Tab.Settings -> {
+                else -> {
                     SettingsScreen(
                         status = settingsViewModel.status,
                         onExport = settingsViewModel::export,

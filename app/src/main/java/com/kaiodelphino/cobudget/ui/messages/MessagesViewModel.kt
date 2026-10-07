@@ -23,7 +23,7 @@ class MessagesViewModel(private val dao: CobudgetDao) : ViewModel() {
     private val selectedPackage = MutableStateFlow<String?>(null)
 
     val state: StateFlow<MessagesUiState> =
-        combine(dao.observeNotifications(), dao.observeMonitoredApps(), selectedPackage) { messages, apps, selected ->
+        combine(dao.observePending(), dao.observeMonitoredApps(), selectedPackage) { messages, apps, selected ->
             MessagesUiState(
                 messages = if (selected == null) messages else messages.filter { it.packageName == selected },
                 apps = apps,

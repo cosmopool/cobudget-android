@@ -1,6 +1,5 @@
 package com.kaiodelphino.cobudget.ui.messages
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -27,17 +26,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.kaiodelphino.cobudget.capture.suggest
 import com.kaiodelphino.cobudget.data.CapturedNotification
 import com.kaiodelphino.cobudget.ui.AppIcon
+import com.kaiodelphino.cobudget.ui.transactions.formatBrl
 import org.json.JSONObject
 import java.time.Instant
 import java.time.ZoneId
@@ -51,6 +49,7 @@ fun MessagesScreen(
     state: MessagesUiState,
     onSelectApp: (String?) -> Unit,
     onDismiss: (Long) -> Unit,
+    onOpen: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize()) {
@@ -70,22 +69,23 @@ fun MessagesScreen(
             }
         }
         if (state.messages.isEmpty()) {
-            EmptyState(if (state.apps.isEmpty()) "Pick apps to monitor in the Apps tab." else "No messages captured yet.")
+            EmptyState(if (state.apps.isEmpty()) "Pick apps to monitor in the Apps tab." else "Nothing pending.")
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(state.messages, key = { it.id }) { MessageCard(it, onDismiss = { onDismiss(it.id) }) }
+                items(state.messages, key = { it.id }) { MessageCard(it, onDismiss = { onDismiss(it.id) }, onOpen = { onOpen(it.id) }) }
             }
         }
     }
 }
 
+/** A pending notification; tap to accept it as a transaction, X to dismiss. */
 @Composable
-private fun MessageCard(message: CapturedNotification, onDismiss: () -> Unit) {
-    var expanded by rememberSaveable(message.id) { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth().animateContentSize().clickable { expanded = !expanded }) {
+private fun MessageCard(message: CapturedNotification, onDismiss: () -> Unit, onOpen: () -> Unit) {
+    val suggestion = remember(message.id) { suggest(message) }
+    Card(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AppIcon(message.packageName)
@@ -107,15 +107,23 @@ private fun MessageCard(message: CapturedNotification, onDismiss: () -> Unit) {
                 Text(it, style = MaterialTheme.typography.titleSmall)
             }
             message.body?.let {
-                Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = if (expanded) Int.MAX_VALUE else 3)
+                Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
             }
-            if (expanded) Details(message)
+            if (suggestion.cents > 0) {
+                Spacer(Modifier.padding(top = 8.dp))
+                Text(
+                    listOf(formatBrl(suggestion.cents), suggestion.merchant).filter(String::isNotEmpty).joinToString(" · "),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
     }
 }
 
+/** Every field and extra of the raw notification, selectable. */
 @Composable
-private fun Details(message: CapturedNotification) {
+internal fun Details(message: CapturedNotification) {
     HorizontalDivider(Modifier.padding(vertical = 12.dp))
     SelectionContainer {
         Column {
