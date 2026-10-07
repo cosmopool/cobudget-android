@@ -95,6 +95,9 @@ private fun MainScreen(
     // The full-screen page over the tabs: accept a pending notification, or edit a transaction. 0 = none.
     var acceptId by rememberSaveable { mutableStateOf(0L) }
     var editId by rememberSaveable { mutableStateOf(0L) }
+    // Bumped on every open so each visit gets a fresh page ViewModel; reusing one by id would bring
+    // back its finished state (done = true) and close the page as soon as it opens.
+    var pageVisit by rememberSaveable { mutableStateOf(0) }
     val onPage = acceptId != 0L || editId != 0L
     fun closePage() {
         acceptId = 0
@@ -153,7 +156,7 @@ private fun MainScreen(
             when {
                 onPage -> {
                     val vm: TransactionPageViewModel = viewModel(
-                        key = "page-$acceptId-$editId",
+                        key = "page-$pageVisit",
                         factory = viewModelFactory { initializer { TransactionPageViewModel(dao, acceptId, editId) } },
                     )
                     TransactionPage(vm, onDone = ::closePage)
@@ -164,13 +167,13 @@ private fun MainScreen(
                         state,
                         onSelectApp = messagesViewModel::select,
                         onDismiss = messagesViewModel::dismiss,
-                        onOpen = { acceptId = it },
+                        onOpen = { acceptId = it; pageVisit++ },
                     )
                 }
                 tab == Tab.Transactions -> {
                     val rows by transactionsViewModel.rows.collectAsStateWithLifecycle()
                     val nicknames by transactionsViewModel.nicknames.collectAsStateWithLifecycle()
-                    TransactionsScreen(rows, nicknames, onOpen = { editId = it })
+                    TransactionsScreen(rows, nicknames, onOpen = { editId = it; pageVisit++ })
                 }
                 tab == Tab.Apps -> {
                     val state by appsViewModel.state.collectAsStateWithLifecycle()
