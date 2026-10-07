@@ -190,6 +190,10 @@ private fun MainScreen(
                         gendaToken = settingsViewModel.gendaToken,
                         gendaPort = settingsViewModel.gendaPort,
                         onGendaChange = settingsViewModel::setGenda,
+                        tags = settingsViewModel.tags.collectAsStateWithLifecycle().value,
+                        onRenameTag = settingsViewModel::renameTag,
+                        soleTagCount = settingsViewModel::soleTagCount,
+                        onDeleteTag = settingsViewModel::deleteTag,
                     )
                 }
             }

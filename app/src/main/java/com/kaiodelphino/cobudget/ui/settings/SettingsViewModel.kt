@@ -10,14 +10,33 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kaiodelphino.cobudget.CobudgetApp
 import com.kaiodelphino.cobudget.capture.NotificationCaptureService
+import com.kaiodelphino.cobudget.data.Tag
 import com.kaiodelphino.cobudget.data.exportBackup
 import com.kaiodelphino.cobudget.data.importBackup
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(private val app: CobudgetApp) : ViewModel() {
 
     var status: String? by mutableStateOf(null)
         private set
+
+    val tags: StateFlow<List<Tag>> =
+        app.db.dao().observeTags().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Renaming onto another tag's name merges the two. */
+    fun renameTag(id: Long, name: String) {
+        viewModelScope.launch { app.db.dao().renameTag(id, name) }
+    }
+
+    /** Transactions that would go back to pending if this tag were deleted. */
+    suspend fun soleTagCount(id: Long): Int = app.db.dao().soleTagCount(id)
+
+    fun deleteTag(id: Long) {
+        viewModelScope.launch { app.db.dao().deleteTag(id) }
+    }
 
     private val genda = app.getSharedPreferences(NotificationCaptureService.GENDA_PREFS, Context.MODE_PRIVATE)
 
