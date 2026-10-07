@@ -130,6 +130,13 @@ data class Tag(
 )
 data class TransactionTag(val transactionId: Long, val tagId: Long)
 
+/** A user-chosen name shown instead of a merchant's bank text. Keyed by [merchantKey]. */
+@Entity(tableName = "merchant_nicknames")
+data class MerchantNickname(@PrimaryKey val merchantKey: String, val nickname: String)
+
+/** Same merchant across spacing and case: "DL *UberRides" and "dl*uberrides" share a key. */
+fun merchantKey(merchant: String): String = merchant.filterNot(Char::isWhitespace).lowercase()
+
 /** One line of the Transactions tab. */
 data class TransactionRow(
     @Embedded val transaction: BankTransaction,
@@ -365,6 +372,28 @@ abstract class CobudgetDao {
         return true
     }
 
+    @Query("SELECT * FROM merchant_nicknames")
+    abstract fun observeNicknames(): Flow<List<MerchantNickname>>
+
+    @Query("SELECT COALESCE((SELECT nickname FROM merchant_nicknames WHERE merchantKey = :key), '')")
+    protected abstract suspend fun nicknameByKey(key: String): String
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    protected abstract suspend fun upsertNickname(nickname: MerchantNickname)
+
+    @Query("DELETE FROM merchant_nicknames WHERE merchantKey = :key")
+    protected abstract suspend fun deleteNickname(key: String)
+
+    /** The merchant's nickname; "" when it has none. */
+    open suspend fun nickname(merchant: String): String = nicknameByKey(merchantKey(merchant))
+
+    /** Names a merchant everywhere it shows up; a blank nickname clears it. A blank merchant can't be named. */
+    open suspend fun setNickname(merchant: String, nickname: String) {
+        val key = merchantKey(merchant)
+        if (key.isEmpty()) return
+        if (nickname.isBlank()) deleteNickname(key) else upsertNickname(MerchantNickname(key, nickname.trim()))
+    }
+
     /** How many transactions have this as their only tag, i.e. go back to pending if it's deleted. */
     @Query(
         "SELECT COUNT(*) FROM transaction_tags l WHERE l.tagId = :id " +
@@ -411,15 +440,16 @@ abstract class CobudgetDao {
 @Database(
     entities = [
         CapturedNotification::class, MonitoredApp::class, GendaPost::class,
-        BankTransaction::class, Tag::class, TransactionTag::class,
+        BankTransaction::class, Tag::class, TransactionTag::class, MerchantNickname::class,
     ],
-    version = 6,
+    version = 7,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4),
         AutoMigration(from = 4, to = 5),
         AutoMigration(from = 5, to = 6, spec = AcceptedTransactionsOnly::class),
+        AutoMigration(from = 6, to = 7),
     ],
     exportSchema = true,
 )
