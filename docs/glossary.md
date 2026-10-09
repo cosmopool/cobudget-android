@@ -1,0 +1,45 @@
+# Glossário — Margem
+
+Vocabulário do app, alinhado ao [spec](spec.md). Fonte visual: [design_system.html](design_system.html#glossario).
+
+- O vocabulário é parte da marca: usar na interface um termo da coluna **Evitar** é bug de texto.
+- Código usa os nomes em inglês (classes, tabelas, chaves); verbos de ação viram métodos (`accept()`, `dismiss()`).
+
+| Termo na marca | Em código | Definição | Exemplo na interface | Evitar |
+|---|---|---|---|---|
+| Anotação automática | `AutoCapture` | O app lê as notificações das fontes escolhidas e guarda cada uma como recado. É a planilha se preenchendo sozinha. | “Anotação automática ligada para 3 fontes.” | captura, leitura de notificações, monitoramento |
+| Anotação pausada | `CaptureState.OFF` | Estado em que o acesso às notificações está desligado; nada é anotado. | “A anotação automática está pausada.” | erro de permissão, serviço parado |
+| Fonte | `Source` | App do celular (banco, cartão, carteira de pagamento) cujas notificações o Margem anota. | “Fontes: Banco Aurora, Cartão Ipê, PagFácil.” | app monitorado, integração, conexão bancária |
+| Recado | `Notice` | Uma notificação anotada: texto original, fonte e hora. Está na pauta, lançado ou riscado. | “4 recados na pauta.” | notificação (na interface), alerta, evento |
+| Novo | `Notice.isNew` | Recado que chegou desde a última vez que a Pauta foi aberta; aparece destacado. | Fio duplo no cartão do recado. | não lido, unread |
+| Parece propaganda | `Notice.looksLikeAd` | Selo do recado do qual não se leu valor nem estabelecimento; o botão vira “Lançar mesmo assim”. | Selo “Parece propaganda”. | spam, lixo |
+| Pauta | `Inbox` | Lista dos recados que ainda esperam decisão. | “Pauta limpa.” | caixa de entrada, pendências, fila |
+| Lançar | `accept()` | Confirmar um recado; ele vira lançamento. Exige exatamente uma verba e pelo menos um marcador. | Botão “Lançar R$ 46,00”. | aceitar, aprovar, confirmar, efetivar |
+| Riscar | `dismiss()` | Tirar da pauta um recado que não é gasto (mensagem, propaganda, entrada de dinheiro). Reversível. | “Recado riscado. Desfazer” | descartar, excluir, deletar, ignorar |
+| Riscados | `DismissedNotices` | Lista dos recados riscados, de onde podem voltar à pauta. | “Trazer de volta da lista Riscados.” | lixeira, arquivo morto |
+| Lançamento | `Transaction` | Gasto confirmado (estorno não é lançamento), com valor, estabelecimento, data, uma verba e ao menos um marcador. | “Lançamentos da semana” | transação, movimentação, despesa, registro |
+| Lançamento manual | `ManualTransaction` | Lançamento criado sem recado (dinheiro, Pix de outro celular), com as mesmas exigências. | Botão “Novo lançamento”. | gasto avulso, entrada manual |
+| Marcador | `Tag` | Rótulo livre, em caixa-baixa, criado pela pessoa. Um lançamento pode ter vários. | Chip “padaria”. | categoria, etiqueta, label |
+| Marcador sugerido | `SuggestedTag` | Marcador do último lançamento do mesmo estabelecimento, pré-selecionado (junto com a verba dele) ao lançar; tracejado até ser confirmado. | Chip tracejado “café”. | categoria automática, IA |
+| Valor sugerido | `ParsedFields` | O que o app leu do texto do recado: valor, estabelecimento e data, antes de qualquer emenda. | Campo “Valor” pré-preenchido com R$ 92,00. | valor detectado, extraído |
+| Emenda · emendado | `Correction` · `isCorrected` | Alteração feita pela pessoa no valor, estabelecimento ou data sugeridos. O original fica guardado. | “‸ emendado · o recado dizia R$ 92,00” | editado, ajuste manual, override |
+| Texto do banco | `RawMerchantText` | Nome do estabelecimento como chega na notificação. | “No banco: PAG*JOSEDASILVA 0231” | descritor, string do merchant |
+| Apelido | `MerchantAlias` | Nome amigável que substitui o texto do banco neste e nos próximos lançamentos. | “Padaria do Zé”, com sublinhado pontilhado em argila. | nickname, alias, nome customizado |
+| Parcela | `Installment` | Uma das partes de uma compra parcelada. A pessoa informa o valor total e o número de parcelas; a parcela k conta na verba no k-ésimo mês a partir do mês da compra, e a última absorve os centavos. À vista = 1 parcela. | “Parcela 3 de 10 · R$ 120,00” | prestação |
+| Registrar estorno | `registerRefund()` | Ação no recado de estorno, no lugar de Lançar: escolher a compra estornada. | Botão “Registrar estorno”. | lançar estorno, reembolsar |
+| Estorno | `Refund` | Não é lançamento: registro de que uma compra não é somada na verba nem na Leitura (parcelada: todas as parcelas). Registrar = escolher a compra: um lançamento, ou um recado ainda não lançado. Pode ser desfeito (Desfazer na hora, ou Desfazer estorno na compra). Não pede verba nem marcador. | “Estorno · a compra de 2 out não conta mais” | reembolso, crédito, cashback, valor negativo |
+| Verba | `Budget` | Limite de gasto criado pela pessoa: nome + cota mensal. Cada lançamento pertence a exatamente uma verba. | “Nova verba”, “Verba Mercado”. | orçamento, envelope, categoria, pote |
+| Cota | `MonthlyLimit` | Quanto a verba permite gastar no mês. Mudar vale do mês atual em diante; cada mês guarda a sua. | “Cota de R$ 600,00 por mês.” | meta, teto, limite (na interface) |
+| Mês | `BudgetMonth` | Janela da cota: do dia de início do mês (Ajustes, igual para todas as verbas) até a véspera dele no mês seguinte. | “Mês de 5 out a 4 nov.” | período, ciclo, competência |
+| Virada | `MonthRollover` | Início de um novo mês; a cota recomeça inteira, sem levar sobra nem excesso. | “O mês recomeça no dia 5.” | reset, zerar, renovação |
+| Margem | `Remaining` | Cota − gasto do mês. É a métrica que dá nome ao app. | “Margem: R$ 163,80.” · “Sobram R$ 273,70.” | saldo, disponível, restante |
+| Ritmo | `Pace` | Comparação entre o gasto do mês e o ritmo ideal. | Marca vertical na régua; “No ritmo”. | velocidade, burn rate, meta diária |
+| No ritmo | `PaceStatus.ON_PACE` | Gasto até o ritmo ideal, sem tolerância. | “No ritmo · margem R$ 58,80” | ok, verde, saudável, parabéns |
+| Acima do ritmo | `PaceStatus.AHEAD` | Gasto acima do ritmo ideal, ainda dentro da cota. | “Acima do ritmo: R$ 51,10 para 3 dias.” | alerta, perigo, quase estourando |
+| Fora da margem | `PaceStatus.OVERRUN` | O gasto do mês passou da cota. O excesso é dito em reais, “além”. | “R$ 12,00 além da cota.” | estourou, no vermelho, negativo, excedeu |
+| Régua | `BudgetMeter` | Medidor da verba: trilho, tinta do gasto, marca do ritmo e fio duplo da margem. | — (componente) | barra de progresso, termômetro |
+| Leitura | `Insights` | Área de análise: gastos por verba, marcador, estabelecimento e tempo. | Aba “Leitura”. | relatórios, dashboard, estatísticas |
+| Ritmo ideal | `PaceLine` | Gasto esperado até hoje pelo plano: passos das semanas fechadas + passo da semana atual proporcional aos dias corridos. Linha tracejada nos gráficos. | Legenda “ritmo ideal”. | meta, target |
+| Passo semanal | `WeeklyStep` | Quanto cabe por semana: cota × dias da semana no mês ÷ dias do mês. Só visualização, não é limite. Editável por semana; as não editadas se ajustam para somar a cota, e uma semana fica sempre automática. | “Passo desta semana: R$ 140,00.” | meta semanal, limite semanal, cota semanal |
+| Semana | `Week` | Semana de calendário, com dia de início escolhido em Ajustes, cortada no mês; a primeira e a última podem ser parciais. | “Semana de 6 a 12 out.” | — |
+| No passo atual | `Projection` | Projeção do fim do mês seguindo o plano: gasto × (soma dos passos do mês ÷ ritmo ideal de hoje). Quem está exatamente no ritmo projeta a cota. | “no passo atual R$ 3.874” | previsão, forecast |
