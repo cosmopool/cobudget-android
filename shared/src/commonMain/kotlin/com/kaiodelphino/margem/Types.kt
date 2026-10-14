@@ -1,0 +1,232 @@
+package com.kaiodelphino.margem
+
+import kotlin.jvm.JvmInline
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
+import kotlinx.datetime.YearMonth
+
+// Zero is initialization: every type here has a valid empty value, and an id of 0 means "none" or "refused".
+
+/** Centavos: R$ 31,50 = Cents(3150). */
+@JvmInline value class Cents(val v: Long) {
+    operator fun plus(o: Cents) = Cents(v + o.v)
+    operator fun minus(o: Cents) = Cents(v - o.v)
+    operator fun compareTo(o: Cents) = v.compareTo(o.v)
+}
+
+@JvmInline value class NoticeId(val v: Long)
+@JvmInline value class TransactionId(val v: Long)
+@JvmInline value class BudgetId(val v: Long)
+@JvmInline value class TagId(val v: Long)
+
+/** The empty date and time of zero values. */
+val NO_DATE = LocalDate(1970, 1, 1)
+val NO_TIME = LocalTime(0, 0)
+val NO_MONTH = YearMonth(1970, 1)
+
+/**
+ * Capture boundary (D25): the androidApp fills it from a StatusBarNotification, the cobudget import
+ * from an old row. Absent text is "", absent time is 0. Texts arrive trimmed.
+ */
+data class RawNotice(
+    val packageName: String = "",
+    val appLabel: String = "",
+    /** StatusBarNotification.key: stable across re-posts of the same notification. */
+    val key: String = "",
+    /** StatusBarNotification.postTime, epoch ms. Changes on every re-post. */
+    val postedAt: Long = 0,
+    /** Notification.when, epoch ms: the event time the app set; 0 = not set. */
+    val whenMs: Long = 0,
+    val title: String = "",
+    val text: String = "",
+    val bigText: String = "",
+    val subText: String = "",
+    /** InboxStyle lines joined with '\n'. */
+    val textLines: String = "",
+    val category: String = "",
+    val channelId: String = "",
+    val extrasJson: String = "",
+) {
+    /** The most complete human-readable body: big text, else the lines, else the text. */
+    val body: String get() = bigText.ifEmpty { textLines.ifEmpty { text } }
+}
+
+/**
+ * What the app read from a notice's text, before any emenda (glossary: Valor sugerido).
+ * cents 0 / merchant "" = not found; date and time fall back to the notice's own time.
+ */
+data class Parsed(
+    val cents: Cents = Cents(0),
+    val merchant: String = "",
+    val date: LocalDate = NO_DATE,
+    val time: LocalTime = NO_TIME,
+    /** The text announces an estorno: the Pauta offers Registrar estorno instead of Lançar. */
+    val isRefund: Boolean = false,
+)
+
+enum class BudgetOrder { RISK, MANUAL, AZ }
+
+enum class Theme { SYSTEM, LIGHT, DARK }
+
+enum class PaceStatus { ON_PACE, AHEAD, OVERRUN }
+
+/** Derived, never stored (spec §2, architecture §5). */
+enum class NoticeStatus { PENDING, DISMISSED, PROCESSED }
+
+data class Settings(
+    /** 1..31; a day missing from a month means that month's last day (spec §3). */
+    val monthStartDay: Int = 1,
+    val weekStart: DayOfWeek = DayOfWeek.MONDAY,
+    val theme: Theme = Theme.SYSTEM,
+    /** Order of the Verbas tab. */
+    val budgetOrder: BudgetOrder = BudgetOrder.RISK,
+    /** Order of the Verbas widget. */
+    val widgetOrder: BudgetOrder = BudgetOrder.RISK,
+    /** Epoch ms of the last time the Pauta was opened; notices posted after it are new. */
+    val pautaSeenAt: Long = 0,
+)
+
+/** An app whose notifications become notices. */
+data class Source(val packageName: String = "", val label: String = "", val addedAt: Long = 0)
+
+/** A notice as the Pauta, Riscados and the accept screen show it. */
+data class NoticeRow(
+    val id: NoticeId = NoticeId(0),
+    val raw: RawNotice = RawNotice(),
+    val parsed: Parsed = Parsed(),
+    /** Alias of the parsed merchant; "" = none. */
+    val alias: String = "",
+    val status: NoticeStatus = NoticeStatus.PENDING,
+    /** Posted after Settings.pautaSeenAt. */
+    val isNew: Boolean = false,
+    /** Neither a value nor a merchant was read: the button becomes "Lançar mesmo assim". */
+    val looksLikeAd: Boolean = false,
+)
+
+/** The input of accept, addManual and edit (spec §7.3). The Db parses it: see [Db.accept]. */
+data class TransactionForm(
+    val budget: BudgetId = BudgetId(0),
+    /** Tag names; trimmed, lowercased, blanks and repeats dropped. New names create tags. */
+    val tags: List<String> = emptyList(),
+    /** Total of the purchase, split into [installments]. */
+    val total: Cents = Cents(0),
+    /** 1..400; 1 = à vista. */
+    val installments: Int = 1,
+    /** Bank text of the merchant, trimmed; "" is allowed. */
+    val merchant: String = "",
+    val date: LocalDate = NO_DATE,
+    val time: LocalTime = NO_TIME,
+    /** Non-blank sets the merchant's alias; blank leaves the alias as it is. */
+    val alias: String = "",
+)
+
+/** One line of Lançamentos and of the budget detail. */
+data class TransactionRow(
+    val id: TransactionId = TransactionId(0),
+    /** 0 = manual. */
+    val notice: NoticeId = NoticeId(0),
+    val budget: BudgetId = BudgetId(0),
+    val budgetName: String = "",
+    /** Bank text (glossary: Texto do banco). */
+    val merchant: String = "",
+    /** "" = none. */
+    val alias: String = "",
+    val total: Cents = Cents(0),
+    val installments: Int = 1,
+    val date: LocalDate = NO_DATE,
+    val time: LocalTime = NO_TIME,
+    /** Sorted. */
+    val tags: List<String> = emptyList(),
+    /** The estorno notice that cancels this purchase; 0 = not refunded. */
+    val estorno: NoticeId = NoticeId(0),
+    /** Differs from the notice's [Parsed] (glossary: emendado). Manual ones never are. */
+    val corrected: Boolean = false,
+) {
+    val name: String get() = alias.ifEmpty { merchant }
+    val refunded: Boolean get() = estorno.v != 0L
+}
+
+data class Installment(val k: Int = 0, val date: LocalDate = NO_DATE, val cents: Cents = Cents(0))
+
+/** The edit screen: the transaction, its installments and the notice it came from (zero for manual). */
+data class TransactionDetail(
+    val row: TransactionRow = TransactionRow(),
+    val installments: List<Installment> = emptyList(),
+    val notice: NoticeRow = NoticeRow(),
+)
+
+/** Budget and tags of the merchant's last transaction (spec §2.5); zero = no history. */
+data class Suggestion(val budget: BudgetId = BudgetId(0), val tags: List<String> = emptyList())
+
+/** A purchase an estorno can cancel: a transaction or a pending notice (exactly one id is non-zero). */
+data class RefundCandidate(
+    val transaction: TransactionId = TransactionId(0),
+    val notice: NoticeId = NoticeId(0),
+    /** Alias, else merchant text. */
+    val name: String = "",
+    val total: Cents = Cents(0),
+    val date: LocalDate = NO_DATE,
+    /** Same source, same value, same merchant (when the estorno names one) and not after the estorno. */
+    val likely: Boolean = false,
+)
+
+data class Week(
+    /** Cut to the month: the first and last weeks may be partial. */
+    val start: LocalDate = NO_DATE,
+    val end: LocalDate = NO_DATE,
+    val step: Cents = Cents(0),
+    val edited: Boolean = false,
+    val spent: Cents = Cents(0),
+)
+
+/** Everything the screens show about one budget in one month (architecture §6). */
+data class BudgetMonth(
+    val month: YearMonth = NO_MONTH,
+    val start: LocalDate = NO_DATE,
+    val end: LocalDate = NO_DATE,
+    val limit: Cents = Cents(0),
+    val spent: Cents = Cents(0),
+    /** Margem = limit − spent; negative when OVERRUN. */
+    val remaining: Cents = Cents(0),
+    val weeks: List<Week> = emptyList(),
+    /** Ritmo ideal of today. */
+    val ideal: Cents = Cents(0),
+    val status: PaceStatus = PaceStatus.ON_PACE,
+    /** No passo atual; 0 when ideal is 0 (no projection). */
+    val projection: Cents = Cents(0),
+)
+
+data class BudgetSummary(val id: BudgetId = BudgetId(0), val name: String = "", val month: BudgetMonth = BudgetMonth())
+
+data class BudgetDetail(
+    val id: BudgetId = BudgetId(0),
+    val name: String = "",
+    val month: BudgetMonth = BudgetMonth(),
+    /** Transactions with an installment in the month, newest first; refunded ones included. */
+    val transactions: List<TransactionRow> = emptyList(),
+)
+
+/** "Mercado: margem R$ 300,00 → R$ 254,00", for the month of the first installment. */
+data class Preview(val month: YearMonth = NO_MONTH, val before: Cents = Cents(0), val after: Cents = Cents(0))
+
+data class TagRow(
+    val id: TagId = TagId(0),
+    val name: String = "",
+    /** Transactions with this tag. */
+    val uses: Int = 0,
+    /** Transactions with only this tag: deleted with it (spec §2.9). */
+    val soleUses: Int = 0,
+)
+
+/** Leitura, Verbas por mês: one budget in one month, with that month's own limit. */
+data class HistoryRow(
+    val budget: BudgetId = BudgetId(0),
+    val name: String = "",
+    val month: YearMonth = NO_MONTH,
+    val limit: Cents = Cents(0),
+    val spent: Cents = Cents(0),
+)
+
+/** Leitura ranking: a tag or a merchant (by alias), by value, with how many transactions. */
+data class RankRow(val name: String = "", val total: Cents = Cents(0), val count: Int = 0)

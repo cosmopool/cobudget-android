@@ -21,4 +21,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Cobudget"
-include(":app")
+include(":app", ":shared")
