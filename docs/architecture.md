@@ -1,6 +1,6 @@
 # Margem — arquitetura
 
-Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31). O que está em §11 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33). O que está em §11 espera resposta, uma por vez.
 Produto: [spec.md](spec.md). Vocabulário: [glossary.md](glossary.md). Visual: [design_system.html](design_system.html).
 Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o miolo, testes de integração.
 
@@ -14,14 +14,14 @@ Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o
 | D4 | A importação passa cada recado pela **mesma regra de dedupe da captura**. | Os dois apps capturam ao mesmo tempo; a mesma regra evita recados duplicados. |
 | D5 | **SQLite direto pela API KMP do `androidx.sqlite`** (`SQLiteDriver`, `SQLiteConnection`), SQL à mão, sem Room, SQLDelight ou KSP. | Sem código gerado: o que se lê é o que roda. Roda no `commonMain`. Os testes cobrem cada consulta. |
 | D6 | **Reatividade por um contador global**: `Db.version: StateFlow<Long>`, incrementado ao fim de toda escrita por um único `write { }`, que em seguida chama `onWrite` (D21). Única exceção: `ensureMonths` (D30). | Uma regra só, impossível de esquecer por tabela. As consultas são pequenas. |
-| D7 | **Uma linha por parcela**, cada uma com a sua **data** (compra + k−1 meses). À vista = 1 parcela. | "Gasto do mês" vira um `SUM` sobre parcelas. A data permite mudar o dia de início do mês sem regravar nada. |
+| D7 | **Uma linha por parcela**, cada uma com a sua **data** (compra + k−1 meses; se, com dia de início 29–31, essa data cair fora do k-ésimo mês, vai para o dia mais próximo dentro dele). À vista = 1 parcela; no máximo 400. | "Gasto do mês" vira um `SUM` sobre parcelas. A data permite mudar o dia de início do mês sem regravar nada. |
 | D8 | **Cota: uma linha por verba e mês**, criada **sob demanda** ao carregar o mês (D30), copiando a anterior e preenchendo meses pulados. | Consulta trivial; sem job agendado; funciona com o app semanas fechado. |
 | D9 | **Passo editado** gravado por verba + data de início da semana. Só as semanas editadas têm linha. | O passo padrão é calculado. |
 | D10 | Mudar o dia de início da semana ou do mês **apaga as edições de passo do mês atual em diante** (o app avisa antes). Meses passados são recalculados com o dia novo; edição que não casar com uma semana nova é ignorada. | As semanas mudam; converter edições seria difícil de explicar e testar. |
 | D11 | **Centavos dos passos**: todos são arredondados para baixo; a **última semana não editada** recebe a diferença. | A soma dos passos é sempre igual à cota. |
-| D12 | **O SQL lê, uma função Kotlin calcula**: `budgetMonth(...)` produz gasto, margem, passos, ritmo ideal, estado e projeção. Telas, widgets e Leitura usam a mesma função. | Fácil de testar e de depurar com breakpoint. |
+| D12 | **O SQL lê, uma função Kotlin calcula**: `budgetMonth(...)` produz gasto, margem, passos, ritmo ideal, estado e projeção. `budgetMonth` e a extração são `internal` no `shared`: telas, widgets e Leitura recebem `BudgetMonth` e `Parsed` prontos do `Db` (`budgetsOverview`, `budgetDetail`, `pending`, `transaction`). | Fácil de testar e de depurar com breakpoint. Uma API pública só (o `Db`), sem duas formas de chegar ao mesmo número. |
 | D13 | **Ajustes e fontes em tabelas** do próprio SQLite. | Entram no backup e na mesma reatividade: mudar o início do mês recalcula tudo. |
-| D14 | **Backup = cópia do arquivo do banco**: checkpoint do WAL + copiar o `.db`; importar fecha o escritor e os leitores, substitui o arquivo e reabre. A escolha do arquivo (SAF) fica no `androidApp`. | Sem formato próprio para manter. |
+| D14 | **Backup = cópia do arquivo do banco**, feita no `shared` com `kotlinx-io`: exportar = `VACUUM INTO` o caminho dado; importar fecha o escritor e os leitores, substitui o arquivo (apagando `-wal`/`-shm`), reabre, migra e incrementa `version`. A escolha do arquivo (SAF) fica no `androidApp`, que entrega um caminho local. | Sem formato próprio para manter; o mesmo código nos dois apps e nos testes da JVM. |
 | D15 | **UI em Compose Foundation, sem Material 3.** Tokens do book num objeto `Margem` e cerca de 10 componentes próprios. | Fiel ao book, sem desligar padrões do Material. |
 | D16 | **Fontes empacotadas** em `res/font` (Newsreader, Source Sans 3; só os pesos usados). | Funciona offline desde o primeiro uso, inclusive nos widgets. |
 | D17 | **Gráficos em Canvas próprio**, um Composable por gráfico. | São 4 gráficos simples, no estilo do book; sem dependência. |
@@ -30,15 +30,17 @@ Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o
 | D20 | **Widgets em Jetpack Glance**, redimensionáveis (`SizeMode.Responsive`). | Mesmo jeito de pensar da UI; layout por tamanho. |
 | D21 | **Widgets atualizam** a cada escrita: o `Db` recebe `onWrite: () -> Unit` no construtor e o `MargemApp` passa um lambda que chama `updateAll`. Na virada do dia, pelo `updatePeriodMillis` do sistema. | O `shared` não conhece Glance; o elo escrita → widget fica explícito e segue no debugger. Aceito: o widget pode mostrar o ritmo do dia anterior por um tempo. |
 | D22 | **Dois módulos (D26), poucos arquivos grandes** por assunto (§9). Sem camadas repository/usecase. | Codin' Dirty. |
-| D23 | **Testes**: Db, `budgetMonth` e extração em `commonTest`, rodando na JVM (`jvmTest`) com SQLite real em arquivo temporário, sem Robolectric. Robolectric só no `androidApp`, para a conversão de `StatusBarNotification` e os testes de UI Compose (lançar, editar passos). | `.agents/rules/testing.md`. Testes do miolo rápidos e fora do emulador. |
+| D23 | **Testes**: `commonTest`, rodando na JVM (`jvmTest`) com SQLite real em arquivo temporário, sem Robolectric. **Integração pela API pública** (`Db`, `capture`, `parseBrl`); teste unitário (enxergando `internal`) só em três contratos puros: `budgetMonth`, extração e SHA-256. Robolectric só no `androidApp`, para a conversão de `StatusBarNotification` e os testes de UI Compose (lançar, editar passos). | `.agents/rules/testing.md`. Testes do miolo rápidos e fora do emulador, e que sobrevivem a refatorações. |
 | D24 | **minSdk 29** (Android 10). | Mesmo do cobudget; Glance sem restrições. |
 | D25 | **Captura grava direto no Db**: o `NotificationListenerService` converte o `StatusBarNotification` em `RawNotice` (parse na fronteira) e chama `capture(db, raw)` do `shared`, onde ficam extração e dedupe. | Sem fila; a mesma escrita incrementa a versão e atualiza os widgets. |
 | D26 | **Kotlin Multiplatform + UI nativa.** `shared` (KMP) tem dados e regras: tipos, Db, `budgetMonth`, extração, dedupe, `capture()`. `androidApp` tem Compose, Glance, o serviço de notificações, backup e importação. **Na v1 só o app Android é codado**; o iOS entra depois como `iosApp/` (Xcode + SwiftUI), consumindo o `shared`. | Android 100% nativo; a lógica fica pronta para o iOS sem custo de performance. |
-| D27 | **Alvos do `shared`**: `androidTarget`, `jvm`, `iosArm64`, `iosSimulatorArm64`. Os alvos iOS são declarados na v1 mesmo sem app. | Com iOS declarado, o compilador barra `java.*` e `android.*` no `commonMain` desde o primeiro dia. `jvm` roda os testes sem emulador. |
+| D27 | **Alvos do `shared`**: Android pelo plugin `com.android.kotlin.multiplatform.library` (`androidLibrary { }`, não `androidTarget`), `jvm`, `iosArm64`, `iosSimulatorArm64`. Os alvos iOS são declarados na v1 mesmo sem app. | Plugin feito para biblioteca KMP (uma variante só, sem build types). Com iOS declarado, o compilador barra `java.*` e `android.*` no `commonMain` desde o primeiro dia. `jvm` roda os testes sem emulador. |
 | D28 | **`BundledSQLiteDriver` em tudo** (Android, JVM dos testes, iOS). | A mesma versão do SQLite em teste e em produção; um caminho de código só. Aceito: ~1 MB de lib nativa por ABI no APK. |
 | D29 | **Um escritor + 2 leitores.** Escrita numa conexão própria sob `Mutex`; leitura em 2 conexões com `PRAGMA query_only = 1` num `Channel`: `read { }` pega uma, usa e devolve. WAL ligado. | Com WAL, leitura não espera escrita: tela, widget e captura não se bloqueiam. 2 leitores bastam para esses três. |
 | D30 | **`ensureMonths(month)`** roda no escritor **sem incrementar `version`**: `INSERT OR IGNORE` copiando a cota anterior e preenchendo meses pulados. Telas e widgets chamam antes de consultar o mês. | Leitores são `query_only`. As linhas criadas só materializam a cota que já valia: nada na tela muda, e incrementar `version` faria a tela reconsultar em loop. |
 | D31 | **Datas com `kotlinx-datetime`** (`LocalDate`, `LocalTime`, `YearMonth`, `DayOfWeek`) no `shared` e no `androidApp`. Sem `java.time`. | `java.time` não existe no `commonMain`; um tipo de data só nos dois módulos. |
+| D32 | **`content_hash` = SHA-256 escrito à mão no `commonMain`** (sem `java.security`), sobre título, texto, texto longo, subtexto e linhas, cada um seguido de um byte 0 — o mesmo hash do cobudget. | Sem dependência de criptografia para um hash de dedupe; igual ao do app antigo, a importação (D4) casa recados repetidos. |
+| D33 | **Na v1, `app/` (cobudget) segue no build** (`:app` + `:shared`) até o bloco do `androidApp`. | O app antigo continua compilando e com testes verdes enquanto o `shared` nasce. |
 
 ## 2. Componentes
 
@@ -144,6 +146,7 @@ CREATE TABLE merchant_aliases(merchant_key TEXT PRIMARY KEY, alias TEXT NOT NULL
 - **Gasto do mês de uma verba** = `SUM(installments.cents)` das parcelas com data dentro do mês, de lançamentos da verba **não estornados** (sem linha em `refunds` apontando para eles). Estorno de parcelada tira todas as parcelas.
 - **Estorno de recado não lançado**: os dois recados (compra e estorno) saem da Pauta e nada conta.
 - **Desfazer estorno** = apagar a linha de `refunds`: a compra volta a contar e os recados voltam a ser pendentes.
+- **Apagar lançamento**: apaga parcelas, ligações de marcador e as linhas de `refunds` que apontam para ele; o recado dele e o recado de estorno voltam a ser pendentes.
 - **Apagar verba**: apaga lançamentos, parcelas, ligações de marcador, cotas e passos dela; os recados voltam à Pauta.
 - **Apagar marcador**: apaga os lançamentos que ficam sem marcador (recados voltam à Pauta).
 - **Lançar**: exige verba e ≥1 marcador; grava lançamento + parcelas + marcadores numa transação; `corrected` quando difere da sugestão.
@@ -213,17 +216,17 @@ sealed interface Screen {
 
 ## 9. Arquivos
 
-Pacote `com.kaiodelphino.margem` nos dois módulos.
+Pacote Kotlin `com.kaiodelphino.margem` nos dois módulos. Namespace Android: `com.kaiodelphino.margem` no app (D1) e `com.kaiodelphino.margem.shared` no `shared`.
 
 **`shared/src/commonMain/kotlin/com/kaiodelphino/margem/`**
 
 | Arquivo | Conteúdo |
 |---|---|
-| `Db.kt` | Escritor + leitores (D29), schema, migrações, `write { }`, `read { }`, `version`, `onWrite`, `ensureMonths`, todas as consultas e escritas, checkpoint e reabertura para o backup. |
-| `Types.kt` | Value classes, `RawNotice`, `PaceStatus`. |
-| `Capture.kt` | `capture(db, raw)`, dedupe (usado também pela importação, D4). |
-| `Extract.kt` | Leitura de valor/estabelecimento/data; `parseBrl`. |
-| `Month.kt` | `budgetMonth()`. |
+| `Db.kt` | Escritor + leitores (D29), schema, migrações, `write { }`, `read { }`, `version`, `onWrite`, `ensureMonths`, todas as consultas e escritas, exportar/importar (D14). |
+| `Types.kt` | Value classes, `RawNotice`, `Parsed`, `PaceStatus`, ajustes e linhas de leitura. |
+| `Capture.kt` | `capture(db, raw)`, dedupe (usado também pela importação, D4), SHA-256 (D32). |
+| `Extract.kt` | Leitura de valor/estabelecimento/data (`internal`); `parseBrl` (público). |
+| `Month.kt` | `budgetMonth()`, janela do mês, limite da edição de passo, ordem por risco (`internal`). |
 
 **`androidApp/src/main/kotlin/com/kaiodelphino/margem/`**
 
@@ -241,16 +244,18 @@ Pacote `com.kaiodelphino.margem` nos dois módulos.
 **`iosApp/`**: não existe na v1 (D26).
 
 Dependências:
-- `shared`: `kotlinx-coroutines-core`, `kotlinx-datetime`, `androidx.sqlite:sqlite-bundled`; testes: `kotlin-test`.
+- `shared`: `kotlinx-coroutines-core`, `kotlinx-datetime`, `kotlinx-io-core` (backup, D14), `androidx.sqlite:sqlite-bundled`; testes: `kotlin-test`, `kotlinx-coroutines-test`.
 - `androidApp`: Compose (foundation, ui, activity-compose), Glance appwidget; testes: JUnit, Robolectric, androidx.test core, compose ui-test.
 - Sem Room, SQLDelight, Material 3, ViewModel, Navigation ou bibliotecas de gráfico.
 
 ## 10. Testes
 
+- **Regra** (D23): integração pela API pública; unitário só em `budgetMonth`, extração e SHA-256.
 - **Banco** (`shared/commonTest`, rodando em `jvmTest`, SQLite em arquivo temporário por teste, D23): captura → Pauta → lançar → mês da verba; riscar e trazer de volta; estorno de lançamento e de recado; parcelas atravessando meses; virada (`ensureMonths` cria a linha de cota, preenche meses pulados e não incrementa `version`); mudar dia de início (edições descartadas); apagar verba e marcador; leitura durante escrita (D29); backup e reabertura; importação do cobudget com dedupe.
 - **`budgetMonth`** (`commonTest`): semanas parciais, passos editados e bloqueios, centavos, dia de início 29–31, verba criada no meio do mês, estados e projeção.
 - **Extração** (`commonTest`): os casos atuais de `ExtractTest`/`CaptureTest`, portados para `RawNotice`.
 - **Android** (`androidApp`, Robolectric): conversão `StatusBarNotification` → `RawNotice`; UI Compose: fluxo de lançar (verba + marcador obrigatórios, parcelas, prévia) e editor de passos.
+- **Rodada de 4 agentes** sobre o contrato fechado (tipos + assinaturas com KDoc, corpos `TODO()`), em paralelo com a implementação, cada um num worktree e num arquivo: **borda** (`EdgeTest`), **fuzz** (`FuzzTest`, seed fixa e tempo limitado), **concorrência e ciclo de vida** (`ConcurrencyTest`), **invariantes** (`InvariantsTest`, sequências aleatórias de ações checando §5). Só veem spec, glossário, arquitetura e contrato. Cada falha é triada pela spec: bug no código → corrige o código; teste que leu a spec errado → corrige o teste, com o porquê. Teste nunca é afrouxado para passar.
 - O alvo `iosSimulatorArm64Test` existe, mas fica fora do loop da v1.
 
 ## 11. Em aberto

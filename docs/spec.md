@@ -24,6 +24,7 @@ O estorno não é crédito: é só o registro de que uma compra não conta (§6)
 6. Valor, estabelecimento e data vêm pré-preenchidos do texto do recado; a pessoa pode **emendar**.
 7. **Lançamento manual:** a pessoa cria um lançamento sem recado (dinheiro, Pix de outro celular), com os mesmos campos e as mesmas exigências.
 8. Apagar um lançamento devolve o recado dele à Pauta (o manual simplesmente some).
+   Se ele estava estornado, o estorno é apagado junto: o recado de estorno também volta à Pauta.
 9. Apagar um marcador apaga os lançamentos que ficam sem nenhum marcador; os recados deles voltam à Pauta.
 10. **Apelido** do estabelecimento substitui o texto do banco em todo lugar.
 11. Recados que chegaram desde a última vez que a Pauta foi aberta aparecem como **novos**.
@@ -56,6 +57,7 @@ Uma **visualização** de quanto cabe por semana. Não é limite e não muda com
 - **Centavos**: passos automáticos são arredondados para baixo; a última semana não editada recebe a diferença.
   Ex.: R$ 100,00 em 3 semanas iguais → 33,33 · 33,33 · 33,34.
 - Edições valem para aquele mês daquela verba. Mudar a cota redistribui só as semanas não editadas.
+  Se a cota nova ficar abaixo da soma dos passos editados de um mês (do atual em diante), as edições daquele mês são apagadas e todas as semanas voltam ao automático.
 - **Mudar o dia de início da semana ou do mês** apaga as edições de passo do mês atual em diante; o app avisa antes. Meses passados são recalculados com o dia novo.
 
 ## 5. Ritmo
@@ -84,9 +86,10 @@ Uma **visualização** de quanto cabe por semana. Não é limite e não muda com
 - **Desfazer estorno**: snackbar com **Desfazer** logo após registrar; depois, a ação **Desfazer estorno** na compra estornada (em Lançamentos).
   A compra volta a contar e o recado de estorno volta à Pauta (o recado da compra não lançada também volta).
 - **Parcelas**: ao lançar, a pessoa informa o **valor total** e o número de parcelas; a tela mostra a prévia ("10 × R$ 120,00").
-  A parcela k conta na verba no k-ésimo mês a partir do mês da compra; a última parcela absorve os centavos.
+  A parcela k conta na verba no k-ésimo mês a partir do mês da compra; a última parcela absorve os centavos. De 1 a 400 parcelas.
   Ex.: R$ 1.200 em 10× → R$ 120 por mês, em 10 meses.
 - **Estorno de compra parcelada**: tira **todas** as parcelas, inclusive as de meses passados.
+- **Apagar um lançamento estornado** apaga o estorno junto: o recado da compra e o recado de estorno voltam à Pauta.
 
 ## 7. Telas
 
@@ -124,6 +127,7 @@ Cinco abas: **Verbas** (início) · **Pauta** · **Lançamentos** · **Leitura**
 - **Marcadores e estabelecimentos**: ranking **por valor** no período escolhido, com a contagem ao lado (estabelecimentos pelo apelido).
   Um lançamento com vários marcadores conta inteiro em cada um; a tela avisa que a soma dos marcadores pode passar do total.
 - **Calendário de gastos**: mapa de calor por dia.
+- Ranking e calendário contam a compra parcelada **pela data de cada parcela**, como o Gasto do mês (§3); a contagem do ranking é de lançamentos com parcela no período. Compras estornadas não contam.
 
 ### 7.6 Ajustes
 - Fontes (quais apps são anotados).
