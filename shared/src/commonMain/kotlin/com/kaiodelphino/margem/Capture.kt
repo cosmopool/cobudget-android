@@ -1,5 +1,14 @@
 package com.kaiodelphino.margem
 
+import androidx.sqlite.SQLiteConnection
+import androidx.sqlite.SQLiteDriver
+import kotlin.math.abs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
+
 /** Re-posts of the same notification usually arrive seconds apart; real repeat purchases rarely do. */
 const val DUPLICATE_WINDOW_MS = 2 * 60 * 1000L
 
@@ -17,23 +26,30 @@ suspend fun capture(db: Db, raw: RawNotice): Boolean {
     val hash = contentHash(parts)
     return db.write { c ->
         if (c.long("SELECT COUNT(*) FROM sources WHERE package = ?", raw.packageName) == 0L) return@write false
-        // when = 0 means "not set": matching on it would merge unrelated posts forever.
-        if (raw.whenMs != 0L &&
-            c.long("SELECT EXISTS(SELECT 1 FROM notices WHERE key = ? AND content_hash = ? AND when_ms = ?)", raw.key, hash, raw.whenMs) == 1L
-        ) return@write false
-        val latest = c.query("SELECT content_hash, posted_at FROM notices WHERE key = ? ORDER BY posted_at DESC, id DESC LIMIT 1", raw.key) {
-            it.getText(0) to it.getLong(1)
-        }.firstOrNull()
-        if (latest != null && latest.first == hash && kotlin.math.abs(raw.postedAt - latest.second) < DUPLICATE_WINDOW_MS) return@write false
-        c.exec(
-            "INSERT INTO notices(package, app_label, key, posted_at, when_ms, title, text, big_text, sub_text, text_lines, " +
-                "category, channel_id, extras_json, content_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            raw.packageName, raw.appLabel, raw.key, raw.postedAt, raw.whenMs, raw.title, raw.text, raw.bigText,
-            raw.subText, raw.textLines, raw.category, raw.channelId, raw.extrasJson, hash,
-        )
+        if (isRepost(c, raw, hash)) return@write false
+        insertNotice(c, raw, hash, dismissed = false)
         true
     }
 }
+
+/** The dedupe of [capture] (D4): same key, content and `when`; or the latest of the key with the same content, posted close. */
+private fun isRepost(c: SQLiteConnection, raw: RawNotice, hash: String): Boolean {
+    // when = 0 means "not set": matching on it would merge unrelated posts forever.
+    if (raw.whenMs != 0L &&
+        c.long("SELECT EXISTS(SELECT 1 FROM notices WHERE key = ? AND content_hash = ? AND when_ms = ?)", raw.key, hash, raw.whenMs) == 1L
+    ) return true
+    val latest = c.query("SELECT content_hash, posted_at FROM notices WHERE key = ? ORDER BY posted_at DESC, id DESC LIMIT 1", raw.key) {
+        it.getText(0) to it.getLong(1)
+    }.firstOrNull()
+    return latest != null && latest.first == hash && abs(raw.postedAt - latest.second) < DUPLICATE_WINDOW_MS
+}
+
+private fun insertNotice(c: SQLiteConnection, raw: RawNotice, hash: String, dismissed: Boolean) = c.exec(
+    "INSERT INTO notices(package, app_label, key, posted_at, when_ms, title, text, big_text, sub_text, text_lines, " +
+        "category, channel_id, extras_json, content_hash, dismissed) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    raw.packageName, raw.appLabel, raw.key, raw.postedAt, raw.whenMs, raw.title, raw.text, raw.bigText,
+    raw.subText, raw.textLines, raw.category, raw.channelId, raw.extrasJson, hash, dismissed,
+)
 
 /**
  * Importar do cobudget (spec §7.6, D3, D4, D40): adds the notices of the cobudget backup at [path] to
@@ -63,7 +79,54 @@ suspend fun capture(db: Db, raw: RawNotice): Boolean {
  *   `extrasJson` TEXT NOT NULL, `contentHash` TEXT NOT NULL, `dismissed` INTEGER NOT NULL DEFAULT 0)
  * ```
  */
-suspend fun importCobudget(db: Db, path: String): CobudgetImport = TODO()
+suspend fun importCobudget(db: Db, path: String): CobudgetImport {
+    val rows = withContext(Dispatchers.IO) { readCobudget(db.driver, path) } ?: return CobudgetImport()
+    return db.write { c ->
+        var pending = 0
+        var dismissed = 0
+        var skipped = 0
+        for ((raw, gone) in rows) {
+            val parts = listOf(raw.title, raw.text, raw.bigText, raw.subText, raw.textLines)
+            val hash = contentHash(parts)
+            if (parts.all(String::isBlank) || isRepost(c, raw, hash)) {
+                skipped++
+                continue
+            }
+            insertNotice(c, raw, hash, gone)
+            if (gone) dismissed++ else pending++
+        }
+        CobudgetImport(opened = true, pending = pending, dismissed = dismissed, skipped = skipped)
+    }
+}
+
+private val COBUDGET_COLUMNS = listOf(
+    "packageName", "appLabel", "notificationKey", "postedAt", "notificationWhen", "title", "text", "bigText",
+    "subText", "textLines", "category", "channelId", "extrasJson", "dismissed",
+)
+
+/** The notices of a cobudget v7 file with their dismissed flag, by postedAt then id; null when it isn't one. */
+private fun readCobudget(driver: SQLiteDriver, path: String): List<Pair<RawNotice, Boolean>>? {
+    if (!SystemFileSystem.exists(Path(path))) return null
+    return runCatching {
+        val c = driver.open(path)
+        try {
+            if (c.long("PRAGMA user_version") != 7L) return null
+            val columns = c.query("PRAGMA table_info(captured_notifications)") { it.getText(1) }
+            if (!columns.containsAll(COBUDGET_COLUMNS)) return null
+            c.query("SELECT ${COBUDGET_COLUMNS.joinToString()} FROM captured_notifications ORDER BY postedAt, id") {
+                fun text(i: Int) = if (it.isNull(i)) "" else it.getText(i)
+                RawNotice(
+                    packageName = text(0), appLabel = text(1), key = text(2), postedAt = it.getLong(3), whenMs = it.getLong(4),
+                    title = text(5), text = text(6), bigText = text(7), subText = text(8), textLines = text(9),
+                    category = text(10), channelId = text(11), extrasJson = text(12),
+                ) to (it.getLong(13) != 0L)
+            }
+        } finally {
+            c.close()
+        }
+    }.getOrNull()
+}
+
 
 /** SHA-256 of the parts, each as its byte length (4 bytes, big-endian) then its UTF-8 bytes, as lowercase hex (D32). */
 internal fun contentHash(parts: List<String>): String {

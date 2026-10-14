@@ -568,6 +568,88 @@ class DbTest {
         assertEquals(2, db.transactions().size)
     }
 
+    /** A cobudget backup (schema v7, the table importCobudget reads) at "$path.cobudget" with [rows]. */
+    private fun cobudget(vararg rows: CobudgetRow, version: Int = 7): String {
+        val file = "$path.cobudget"
+        val c = BundledSQLiteDriver().open(file)
+        c.exec(
+            "CREATE TABLE `captured_notifications` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `packageName` TEXT NOT NULL, " +
+                "`appLabel` TEXT NOT NULL, `notificationKey` TEXT NOT NULL, `postedAt` INTEGER NOT NULL, `notificationWhen` INTEGER NOT NULL DEFAULT 0, " +
+                "`title` TEXT, `text` TEXT, `bigText` TEXT, `subText` TEXT, `textLines` TEXT, `category` TEXT, `channelId` TEXT, " +
+                "`extrasJson` TEXT NOT NULL, `contentHash` TEXT NOT NULL, `dismissed` INTEGER NOT NULL DEFAULT 0)",
+        )
+        for (r in rows) c.exec(
+            "INSERT INTO captured_notifications(packageName, appLabel, notificationKey, postedAt, notificationWhen, title, text, bigText, " +
+                "extrasJson, contentHash, dismissed) VALUES (?, 'Nu', ?, ?, ?, ?, ?, ?, '{}', 'old', ?)",
+            r.pkg, r.key, r.at, r.at, r.title, r.text, r.text, r.dismissed,
+        )
+        c.exec("PRAGMA user_version = $version")
+        c.close()
+        return file
+    }
+
+    /** Like [nu]: title "Nubank" and the text also as big text. */
+    private class CobudgetRow(
+        val text: String, val at: Long, val dismissed: Boolean = false, val pkg: String = NUBANK, val key: String = "nu|$at", val title: String = "Nubank",
+    )
+
+    @Test
+    fun `the cobudget import brings only notices and repeats stay out`() = runTest {
+        setUp()
+        val captured = post(nu(PURCHASE, T))
+        val file = cobudget(
+            CobudgetRow(UBER, T + MIN),                                // pending
+            CobudgetRow("Pix recebido de Fulano", T + 2 * MIN, true),  // dismissed there: Riscados
+            CobudgetRow(PURCHASE, T),                                  // the notice captured above: same key, content and when
+            CobudgetRow("   ", T + 3 * MIN, title = ""),               // no text
+            CobudgetRow(UBER_REFUND, T + 4 * MIN, pkg = "com.gone"),   // not a source: enters anyway (D4)
+        )
+        val version = db.version.value
+
+        assertEquals(CobudgetImport(opened = true, pending = 2, dismissed = 1, skipped = 2), importCobudget(db, file))
+        assertEquals(version + 1, db.version.value)
+        assertEquals(listOf(UBER_REFUND, UBER, PURCHASE), db.pending().map { it.raw.text })
+        assertEquals(captured, db.pending().last().id)
+        assertEquals(listOf("Pix recebido de Fulano"), db.dismissed().map { it.raw.text })
+        assertTrue(db.sources().none { it.packageName == "com.gone" })
+
+        // Again: every notice is a re-post now, nothing is written.
+        assertEquals(CobudgetImport(opened = true, skipped = 5), importCobudget(db, file))
+        assertEquals(version + 1, db.version.value)
+    }
+
+    @Test
+    fun `a file that is not a cobudget v7 backup is refused untouched`() = runTest {
+        setUp()
+        val old = cobudget(CobudgetRow(UBER, T), version = 6)
+        assertEquals(CobudgetImport(), importCobudget(db, old))
+        assertEquals(CobudgetImport(), importCobudget(db, "$path.missing"))
+        val copy = "$path.copy"
+        assertTrue(db.exportTo(copy))
+        assertEquals(CobudgetImport(), importCobudget(db, copy))
+        assertEquals(0, db.pendingCount())
+    }
+
+    @Test
+    fun `startDropsEdits says when saving the start days deletes step edits`() = runTest {
+        val budget = setUp()
+        val oct = YearMonth(2026, 10)
+        db.ensureMonths(oct)
+        assertFalse(db.startDropsEdits(5, DayOfWeek.SUNDAY, OCT_6)) // no edits at all
+        // Oct 2026 by day 1 with Monday weeks: Oct 1–4, 5–11, …; edit the week of Oct 5.
+        assertTrue(db.setStep(budget, oct, LocalDate(2026, 10, 5), Cents(10000)))
+        val version = db.version.value
+        assertFalse(db.startDropsEdits(1, DayOfWeek.MONDAY, OCT_6))  // nothing changes
+        assertFalse(db.startDropsEdits(0, DayOfWeek.SUNDAY, OCT_6))  // invalid day
+        assertTrue(db.startDropsEdits(1, DayOfWeek.SUNDAY, OCT_6))   // week: cut at Oct 1
+        assertTrue(db.startDropsEdits(10, DayOfWeek.MONDAY, OCT_6))  // month: cut at min(Oct 1, Sep 10)
+        // Next month, the edit of October is in the past: nothing to delete.
+        assertFalse(db.startDropsEdits(1, DayOfWeek.SUNDAY, NOV_20))
+        assertEquals(version, db.version.value)
+        db.setWeekStart(DayOfWeek.SUNDAY, OCT_6)
+        assertFalse(db.startDropsEdits(1, DayOfWeek.MONDAY, OCT_6))
+    }
+
     private companion object {
         const val NUBANK = "com.nu.production"
         const val BANK = "com.bank"

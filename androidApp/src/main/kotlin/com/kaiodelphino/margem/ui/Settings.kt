@@ -3,34 +3,86 @@ package com.kaiodelphino.margem.ui
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.kaiodelphino.margem.BudgetOrder
+import com.kaiodelphino.margem.CobudgetImport
 import com.kaiodelphino.margem.Db
 import com.kaiodelphino.margem.R
+import com.kaiodelphino.margem.TagRow
+import com.kaiodelphino.margem.Theme
 import com.kaiodelphino.margem.accessSettingsIntent
+import com.kaiodelphino.margem.copyIn
+import com.kaiodelphino.margem.deleteTemp
+import com.kaiodelphino.margem.exportInto
+import com.kaiodelphino.margem.importCobudget
+import com.kaiodelphino.margem.widgets.Button
+import com.kaiodelphino.margem.widgets.ButtonKind
 import com.kaiodelphino.margem.widgets.CapturePaused
 import com.kaiodelphino.margem.widgets.Check
+import com.kaiodelphino.margem.widgets.DayHeader
+import com.kaiodelphino.margem.widgets.DayPicker
+import com.kaiodelphino.margem.widgets.EmptyState
+import com.kaiodelphino.margem.widgets.Field
 import com.kaiodelphino.margem.widgets.Icon
 import com.kaiodelphino.margem.widgets.ListRow
 import com.kaiodelphino.margem.widgets.Margem
-import com.kaiodelphino.margem.widgets.SnackHost
+import com.kaiodelphino.margem.widgets.MargemDialog
+import com.kaiodelphino.margem.widgets.NoticeCard
+import com.kaiodelphino.margem.widgets.OptionPicker
 import com.kaiodelphino.margem.widgets.SectionLine
+import com.kaiodelphino.margem.widgets.Snack
+import com.kaiodelphino.margem.widgets.SnackHost
+import com.kaiodelphino.margem.widgets.Stepper
 import com.kaiodelphino.margem.widgets.Text
 import com.kaiodelphino.margem.widgets.TopBar
+import com.kaiodelphino.margem.widgets.monthLong
 import com.kaiodelphino.margem.widgets.sans
+import com.kaiodelphino.margem.widgets.serif
+import com.kaiodelphino.margem.widgets.weekdayLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.isoDayNumber
+import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * Test tags of Ajustes and its sub-screens (spec §7.6, book 10.9, D35): the contract of their UI tests.
@@ -232,27 +284,349 @@ object SettingsTags {
 
 /** Ajustes (spec §7.6, book 10.9): [SettingsTags]. */
 @Composable
-fun Settings(db: Db, granted: Boolean, go: (Screen) -> Unit): Unit = TODO()
+fun Settings(db: Db, granted: Boolean, go: (Screen) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sources = query(db) { it.sources() }
+    val settings = query(db) { it.settings() }
+    Column {
+        TopBar("Ajustes")
+        Column(Modifier.testTag(SettingsTags.LIST).verticalScroll(rememberScrollState()).padding(start = Margem.space.page, end = Margem.space.page, bottom = 24.dp)) {
+            if (!granted) CapturePaused({ context.startActivity(accessSettingsIntent(context)) }, Modifier.padding(top = 8.dp, bottom = 8.dp).testTag(SettingsTags.PAUSED))
+            SectionLine("Anotação", Modifier.padding(top = 0.dp))
+            Entry("Fontes", sources?.joinToString(", ") { it.label }?.ifEmpty { "nenhuma fonte escolhida" }.orEmpty(), SettingsTags.SOURCES) { go(Screen.Sources) }
+            Entry("Riscados", "trazer recados de volta à pauta", SettingsTags.DISMISSED) { go(Screen.Dismissed) }
+            Entry("Marcadores", "renomear, juntar, apagar", SettingsTags.TAGS) { go(Screen.Tags) }
+            if (settings == null) return@Column
+            SectionLine("Mês e semana")
+            Entry("Início do mês e da semana", "dia ${settings.monthStartDay} · ${weekdayLong(settings.weekStart)}", SettingsTags.START_DAYS) { go(Screen.StartDays) }
+            Text("Mudar apaga as edições de passo do mês atual em diante; o app avisa antes.", sans(12.5f, 400, 17f), Modifier.padding(top = 4.dp), Margem.colors.inkTertiary)
+            SectionLine("Aparência")
+            Text("Tema · vale também para os widgets", sans(13f, 400, 17f), Modifier.padding(top = 6.dp), Margem.colors.inkSecondary)
+            OptionPicker(
+                listOf(Theme.SYSTEM to "sistema", Theme.LIGHT to "claro", Theme.DARK to "escuro"), settings.theme,
+                { scope.launch { db.setTheme(it) } }, tag = SettingsTags.THEME,
+            )
+            Text("Ordem do widget de Verbas", sans(13f, 400, 17f), Modifier.padding(top = 12.dp), Margem.colors.inkSecondary)
+            OptionPicker(
+                listOf(BudgetOrder.RISK to "risco", BudgetOrder.MANUAL to "manual", BudgetOrder.AZ to "A–Z"), settings.widgetOrder,
+                { scope.launch { db.setWidgetOrder(it) } }, tag = SettingsTags.WIDGET_ORDER,
+            )
+            SectionLine("Dados")
+            Entry("Backup", "exportar · importar", SettingsTags.BACKUP) { go(Screen.Backup) }
+            Entry("Importar do cobudget", "recados de um backup do app antigo", SettingsTags.COBUDGET) { go(Screen.Cobudget) }
+        }
+    }
+}
 
-/** Ajustes › Riscados: [SettingsTags.DISMISSED_LIST] and the rest of that section. */
+/** A row of Ajustes that opens a sub-screen. */
 @Composable
-fun Dismissed(db: Db, back: () -> Unit): Unit = TODO()
+private fun Entry(title: String, sub: String, tag: String, onClick: () -> Unit) =
+    ListRow(title, Modifier.testTag(tag), sub = sub, onClick = onClick) { Icon(R.drawable.i_avancar, tint = Margem.colors.inkTertiary, size = 20.dp) }
 
-/** Ajustes › Marcadores: [SettingsTags.TAGS_LIST] and the rest of that section. */
+/** Ajustes › Riscados: dismissed notices by day, each with "Trazer de volta" (no Desfazer, spec §7.6). */
 @Composable
-fun Tags(db: Db, back: () -> Unit): Unit = TODO()
+fun Dismissed(db: Db, back: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val dismissed = query(db) { it.dismissed() }
+    val today = LocalToday.current()
+    val zone = TimeZone.currentSystemDefault()
+    Column {
+        TopBar("Riscados", onBack = back)
+        LazyColumn(
+            Modifier.testTag(SettingsTags.DISMISSED_LIST),
+            contentPadding = PaddingValues(start = Margem.space.page, end = Margem.space.page, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item { Text("Recados que não eram gasto. Trazer de volta devolve o recado à Pauta.", sans(15f, 400, 22f), color = Margem.colors.inkSecondary) }
+            if (dismissed == null) return@LazyColumn
+            if (dismissed.isEmpty()) item {
+                EmptyState(
+                    R.drawable.i_riscar, "Nenhum recado riscado.", "Os recados riscados na Pauta aparecem aqui.",
+                    Modifier.testTag(SettingsTags.DISMISSED_EMPTY).semantics(mergeDescendants = true) {},
+                )
+            }
+            val byDay = dismissed.groupBy { Instant.fromEpochMilliseconds(it.raw.postedAt).toLocalDateTime(zone).date }
+            for ((day, notices) in byDay) {
+                item(key = "day-$day") { DayHeader(dayTitle(day, today), Modifier.testTag(SettingsTags.DISMISSED_DAY + day).semantics(mergeDescendants = true) {}) }
+                items(notices, key = { it.id.v }) { n ->
+                    NoticeCard(
+                        n.copy(isNew = false), onAccept = {}, onDismiss = {},
+                        modifier = Modifier.testTag(SettingsTags.DISMISSED_CARD + n.id.v).semantics(mergeDescendants = true) {},
+                        onRestore = { scope.launch { db.restore(n.id) } }, restoreTag = SettingsTags.RESTORE + n.id.v,
+                    )
+                }
+            }
+        }
+    }
+}
 
-/** Ajustes › Início do mês e da semana: [SettingsTags.START_DAY] and the rest of that section. */
-@Composable
-fun StartDays(db: Db, back: () -> Unit): Unit = TODO()
+private fun uses(n: Int) = when (n) {
+    0 -> "nenhum lançamento"
+    1 -> "1 lançamento"
+    else -> "$n lançamentos"
+}
 
-/** Ajustes › Backup: [SettingsTags.BACKUP_EXPORT] and the rest of that section. */
+/** Ajustes › Marcadores (spec §2.9): rename, join by renaming to another tag's name, delete. */
 @Composable
-fun BackupScreen(db: Db, snack: SnackHost, back: () -> Unit): Unit = TODO()
+fun Tags(db: Db, back: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val tags = query(db) { it.tags() }
+    var open by rememberSaveable { mutableLongStateOf(0L) }
+    var deleting by rememberSaveable { mutableLongStateOf(0L) }
+    // A tag deleted or merged from elsewhere closes its dialogs.
+    LaunchedEffect(tags) {
+        if (tags == null) return@LaunchedEffect
+        if (tags.none { it.id.v == open }) open = 0
+        if (tags.none { it.id.v == deleting }) deleting = 0
+    }
+    Column {
+        TopBar("Marcadores", onBack = back)
+        LazyColumn(Modifier.testTag(SettingsTags.TAGS_LIST), contentPadding = PaddingValues(start = Margem.space.page, end = Margem.space.page, bottom = 24.dp)) {
+            item {
+                Text(
+                    "Tocar num marcador muda o nome. Com o nome de outro marcador, os dois viram um só.",
+                    sans(15f, 400, 22f), Modifier.padding(bottom = 8.dp), Margem.colors.inkSecondary,
+                )
+            }
+            if (tags == null) return@LazyColumn
+            if (tags.isEmpty()) item {
+                EmptyState(
+                    R.drawable.i_marcador, "Nenhum marcador.", "Marcadores nascem ao lançar.",
+                    Modifier.testTag(SettingsTags.TAGS_EMPTY).semantics(mergeDescendants = true) {},
+                )
+            }
+            items(tags, key = { it.id.v }) { t -> ListRow(t.name, Modifier.testTag(SettingsTags.TAG_ROW + t.id.v), sub = uses(t.uses), onClick = { open = t.id.v }) }
+        }
+    }
+    val tag = tags?.firstOrNull { it.id.v == open }
+    if (tag != null) TagDialog(db, tag, tags, close = { open = 0 }, delete = { open = 0; deleting = tag.id.v })
+    val doomed = tags?.firstOrNull { it.id.v == deleting }
+    if (doomed != null) MargemDialog(
+        "Apagar o marcador ${doomed.name}?",
+        when (doomed.soleUses) {
+            0 -> "Nenhum lançamento é apagado."
+            1 -> "1 lançamento fica sem marcador e é apagado; o recado dele volta à Pauta."
+            else -> "${doomed.soleUses} lançamentos ficam sem marcador e são apagados; os recados deles voltam à Pauta."
+        },
+        "Apagar", { deleting = 0; scope.launch { db.deleteTag(doomed.id) } }, { deleting = 0 }, tag = SettingsTags.TAG_DELETE_DIALOG,
+    )
+}
 
-/** Ajustes › Importar do cobudget: [SettingsTags.COBUDGET_PICK] and [SettingsTags.COBUDGET_RESULT]. */
+/** The tag's name; the name of another tag turns Salvar into "Juntar com …". */
 @Composable
-fun CobudgetScreen(db: Db, back: () -> Unit): Unit = TODO()
+private fun TagDialog(db: Db, tag: TagRow, all: List<TagRow>, close: () -> Unit, delete: () -> Unit) {
+    val c = Margem.colors
+    val scope = rememberCoroutineScope()
+    var name by rememberSaveable(tag.id.v) { mutableStateOf(tag.name) }
+    var busy by remember { mutableStateOf(false) }
+    val clean = name.trim().lowercase()
+    val other = all.firstOrNull { it.name == clean && it.id != tag.id }
+    Dialog(close, DialogProperties(usePlatformDefaultWidth = false)) {
+        val shape = RoundedCornerShape(8.dp)
+        Column(
+            Modifier.testTag(SettingsTags.TAG_DIALOG).padding(horizontal = 32.dp).widthIn(max = 340.dp).fillMaxWidth()
+                .shadow(14.dp, shape, ambientColor = c.shadow, spotColor = c.shadow).background(c.surface, shape)
+                .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 12.dp),
+        ) {
+            Text("Marcador", serif(22, 500, 28))
+            Field(
+                name, { name = it }, "Nome", tag = SettingsTags.TAG_NAME,
+                hint = if (other != null) "Os lançamentos de ${tag.name} passam para ${other.name}." else "",
+            )
+            Button("Apagar", delete, Modifier.testTag(SettingsTags.TAG_DELETE), kind = ButtonKind.TEXT, color = c.overrun)
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) {
+                Button("Cancelar", close, Modifier.testTag(SettingsTags.TAG_CANCEL), kind = ButtonKind.TEXT)
+                Button(
+                    if (other != null) "Juntar com ${other.name}" else "Salvar",
+                    {
+                        busy = true
+                        scope.launch {
+                            val ok = if (other != null) db.mergeTags(tag.id, other.id) else db.renameTag(tag.id, clean)
+                            // Refused: a tag got that name meanwhile; the list updates and the button offers to join.
+                            if (ok) close() else busy = false
+                        }
+                    },
+                    Modifier.testTag(SettingsTags.TAG_SAVE), kind = ButtonKind.TEXT, enabled = !busy && clean.isNotEmpty() && clean != tag.name,
+                )
+            }
+        }
+    }
+}
+
+/** Ajustes › Início do mês e da semana (book 8.6, D41): a draft saved by Salvar, with the warning when edits go. */
+@Composable
+fun StartDays(db: Db, back: () -> Unit) {
+    val today = LocalToday.current()
+    val scope = rememberCoroutineScope()
+    val saved = query(db) { it.settings() }
+    val month = query(db, today) { it.monthOf(today) }
+    // 0 = not loaded yet; the week is its ISO number.
+    var day by rememberSaveable { mutableIntStateOf(0) }
+    var week by rememberSaveable { mutableIntStateOf(0) }
+    var ask by rememberSaveable { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    LaunchedEffect(saved) {
+        if (saved == null || day != 0) return@LaunchedEffect
+        day = saved.monthStartDay
+        week = saved.weekStart.isoDayNumber
+    }
+    Column(Modifier.fillMaxSize()) {
+        TopBar("Início do mês e da semana", onBack = back)
+        if (saved == null || day == 0) return@Column
+        val weekDay = DayOfWeek(week)
+        val changed = day != saved.monthStartDay || weekDay != saved.weekStart
+
+        fun save() {
+            busy = true
+            scope.launch {
+                db.setMonthStartDay(day, today)
+                db.setWeekStart(weekDay, today)
+                back()
+            }
+        }
+
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Margem.space.page)) {
+            Text(
+                "Os mesmos para todas as verbas. O mês vai do dia escolhido até a véspera dele no mês seguinte; dia 29 a 31 vira o último dia nos meses mais curtos.",
+                sans(15f, 400, 22f), Modifier.padding(bottom = 8.dp), Margem.colors.inkSecondary,
+            )
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Mês começa no dia", serif(17, 500, 22))
+                Stepper(day, { day = it }, 1..31, tag = SettingsTags.START_DAY)
+            }
+            Text("Semana começa na", serif(17, 500, 22), Modifier.padding(top = 20.dp, bottom = 8.dp))
+            DayPicker(weekDay, { week = it.isoDayNumber }, tag = SettingsTags.START_WEEK)
+            Text(
+                "Mudar apaga as edições de passo do mês atual em diante, em todas as verbas. Meses passados são recalculados com o dia novo.",
+                sans(12.5f, 400, 17f), Modifier.padding(top = 16.dp), Margem.colors.inkTertiary,
+            )
+        }
+        Button(
+            "Salvar",
+            {
+                busy = true
+                scope.launch {
+                    if (db.startDropsEdits(day, weekDay, today)) {
+                        ask = true
+                        busy = false
+                    } else {
+                        save()
+                    }
+                }
+            },
+            Modifier.fillMaxWidth().padding(horizontal = Margem.space.page, vertical = 16.dp).testTag(SettingsTags.START_SAVE), enabled = changed && !busy,
+        )
+        if (ask) MargemDialog(
+            when {
+                day == saved.monthStartDay -> "Mudar o início da semana?"
+                weekDay == saved.weekStart -> "Mudar o início do mês?"
+                else -> "Mudar o início do mês e da semana?"
+            },
+            "As edições de passo de ${month?.let { monthLong(it.month) }.orEmpty()} em diante são apagadas, em todas as verbas, e os passos voltam ao padrão. " +
+                "Meses passados são recalculados com o dia novo.",
+            "Mudar", { ask = false; save() }, { ask = false }, tag = SettingsTags.START_DIALOG,
+        )
+    }
+}
+
+/** Ajustes › Backup (D14): export a copy; import restores it after a dialog. */
+@Composable
+fun BackupScreen(db: Db, snack: SnackHost, back: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val today = LocalToday.current()
+    // The picked file, copied locally, waiting for the dialog.
+    var incoming by rememberSaveable { mutableStateOf("") }
+    val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        snack.scope.launch { snack.show(Snack(if (exportInto(context, db, uri)) "Backup exportado." else "Não deu para exportar o backup.")) }
+    }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val path = copyIn(context, uri)
+            if (path.isEmpty()) snack.show(Snack(NOT_A_BACKUP)) else incoming = path
+        }
+    }
+    Column {
+        TopBar("Backup", onBack = back)
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Margem.space.page)) {
+            Text(
+                "Exportar grava uma cópia de tudo — verbas, lançamentos, recados e ajustes — num arquivo que você escolhe.",
+                sans(15f, 400, 22f), Modifier.padding(bottom = 12.dp), Margem.colors.inkSecondary,
+            )
+            Button("Exportar", { export.launch("margem-$today.db") }, Modifier.testTag(SettingsTags.BACKUP_EXPORT), kind = ButtonKind.SECONDARY)
+            Text(
+                "Importar restaura um backup do Margem no lugar dos dados atuais.",
+                sans(15f, 400, 22f), Modifier.padding(top = 24.dp, bottom = 12.dp), Margem.colors.inkSecondary,
+            )
+            Button("Importar", { pick.launch(arrayOf("*/*")) }, Modifier.testTag(SettingsTags.BACKUP_IMPORT), kind = ButtonKind.SECONDARY)
+        }
+    }
+    if (incoming.isNotEmpty()) MargemDialog(
+        "Restaurar este backup?", "Verbas, lançamentos, recados e ajustes atuais dão lugar aos do backup. Não dá para desfazer.", "Restaurar",
+        {
+            val path = incoming
+            incoming = ""
+            snack.scope.launch {
+                val ok = db.importFrom(path)
+                deleteTemp(path)
+                snack.show(Snack(if (ok) "Backup restaurado." else NOT_A_BACKUP))
+            }
+        },
+        { deleteTemp(incoming); incoming = "" }, tag = SettingsTags.BACKUP_DIALOG,
+    )
+}
+
+private const val NOT_A_BACKUP = "Este arquivo não é um backup do Margem."
+
+/** The result line of Importar do cobudget ([SettingsTags.COBUDGET_RESULT]). */
+private fun cobudgetResult(r: CobudgetImport): String {
+    if (!r.opened) return "Este arquivo não é um backup do cobudget."
+    val total = r.pending + r.dismissed
+    val head = when (total) {
+        0 -> "Nenhum recado importado."
+        1 -> "1 recado importado: ${r.pending} na Pauta, ${r.dismissed} em Riscados."
+        else -> "$total recados importados: ${r.pending} na Pauta, ${r.dismissed} em Riscados."
+    }
+    return when (r.skipped) {
+        0 -> head
+        1 -> "$head 1 não entrou (repetido ou sem texto)."
+        else -> "$head ${r.skipped} não entraram (repetidos ou sem texto)."
+    }
+}
+
+/** Ajustes › Importar do cobudget (D3, D40): only notices; repeats stay out, so it can run again. */
+@Composable
+fun CobudgetScreen(db: Db, back: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var result by rememberSaveable { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = true
+        scope.launch {
+            val path = copyIn(context, uri)
+            val r = if (path.isEmpty()) CobudgetImport() else importCobudget(db, path)
+            deleteTemp(path)
+            result = cobudgetResult(r)
+            busy = false
+        }
+    }
+    Column {
+        TopBar("Importar do cobudget", onBack = back)
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Margem.space.page)) {
+            Text(
+                "Traz os recados de um backup do cobudget. Os riscados lá entram em Riscados; os outros, mesmo os que já tinham lançamento, " +
+                    "entram na Pauta para lançar com verba. Fontes, marcadores e apelidos não vêm. Recados repetidos não entram: importar de novo não duplica nada.",
+                sans(15f, 400, 22f), Modifier.padding(bottom = 12.dp), Margem.colors.inkSecondary,
+            )
+            Button("Escolher arquivo", { pick.launch(arrayOf("*/*")) }, Modifier.testTag(SettingsTags.COBUDGET_PICK), kind = ButtonKind.SECONDARY, enabled = !busy)
+            if (result.isNotEmpty()) Text(result, serif(17, 400, 24), Modifier.padding(top = 20.dp).testTag(SettingsTags.COBUDGET_RESULT))
+        }
+    }
+}
 
 /** An app with a launcher icon (Ajustes › Fontes). */
 class LauncherApp(val packageName: String, val label: String)

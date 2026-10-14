@@ -231,7 +231,20 @@ class Db(
      * edit? Reads only (spec §4, D41): the screen asks before saving when true. False when neither changes,
      * when [monthStartDay] is outside 1..31, or when no edit falls at or after the cut those two would use.
      */
-    suspend fun startDropsEdits(monthStartDay: Int, weekStart: DayOfWeek, today: LocalDate): Boolean = TODO()
+    suspend fun startDropsEdits(monthStartDay: Int, weekStart: DayOfWeek, today: LocalDate): Boolean {
+        if (monthStartDay !in 1..31) return false
+        return read { c ->
+            val s = settings(c)
+            val start = monthWindow(monthOf(today, s.monthStartDay), s.monthStartDay).start
+            // setWeekStart after a new month day cuts at the new month's start, never before this one.
+            val cut = when {
+                monthStartDay != s.monthStartDay -> minOf(start, monthWindow(monthOf(today, monthStartDay), monthStartDay).start)
+                weekStart != s.weekStart -> start
+                else -> return@read false
+            }
+            c.long("SELECT EXISTS(SELECT 1 FROM week_steps WHERE week_start >= ?)", cut.low()) == 1L
+        }
+    }
 
     suspend fun setTheme(theme: Theme): Unit = write { setSetting(it, "theme", theme.name) }
 

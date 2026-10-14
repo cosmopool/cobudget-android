@@ -558,13 +558,14 @@ fun noticeTime(postedAt: Long): String = time(Instant.fromEpochMilliseconds(post
  * Book §8.4: source, time, the bank text quoted in italics, merchant (alias underlined) and value read,
  * and the two buttons. New = argila double rule on the left. Estorno: "Registrar estorno" and the value
  * without color. Looks like an ad: dashed card, the flag, "Lançar mesmo assim" and Riscar as primary.
- * No gestures: only the buttons.
+ * With [onRestore] (Riscados), "Trazer de volta" is the one button. No gestures: only the buttons.
  */
 @Composable
 fun NoticeCard(
     notice: NoticeRow, onAccept: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier,
     time: String = noticeTime(notice.raw.postedAt), acceptEnabled: Boolean = true,
     acceptTag: String = "", dismissTag: String = "", newTag: String = "",
+    onRestore: (() -> Unit)? = null, restoreTag: String = "",
 ) {
     val c = Margem.colors
     val ad = notice.looksLikeAd
@@ -610,6 +611,11 @@ fun NoticeCard(
             val accept = if (acceptTag.isEmpty()) Modifier else Modifier.testTag(acceptTag)
             val dismiss = if (dismissTag.isEmpty()) Modifier else Modifier.testTag(dismissTag)
             when {
+                // Riscados: the one action is bringing it back to the Pauta.
+                onRestore != null -> Button(
+                    "Trazer de volta", onRestore, if (restoreTag.isEmpty()) Modifier else Modifier.testTag(restoreTag),
+                    kind = ButtonKind.SECONDARY, icon = R.drawable.i_desfazer, small = true,
+                )
                 ad -> {
                     Button("Lançar mesmo assim", onAccept, accept, kind = ButtonKind.TEXT, small = true, enabled = acceptEnabled)
                     Button("Riscar", onDismiss, dismiss, icon = R.drawable.i_riscar, small = true)
