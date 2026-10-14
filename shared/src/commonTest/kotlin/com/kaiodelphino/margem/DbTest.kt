@@ -357,6 +357,15 @@ class DbTest {
     }
 
     @Test
+    fun `a deleted budget's id never comes back`() = runTest {
+        val first = db.createBudget("Mercado", Cents(100), OCT_6)
+        val last = db.createBudget("Casa", Cents(100), OCT_6)
+        db.deleteBudget(last)
+        val next = db.createBudget("Casa", Cents(100), OCT_6)
+        assertTrue(next.v > last.v && first.v < last.v)
+    }
+
+    @Test
     fun `limitDropsEdits says beforehand what setLimit deletes`() = runTest {
         val budget = setUp()
         val oct = YearMonth(2026, 10)

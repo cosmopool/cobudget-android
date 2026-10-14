@@ -25,7 +25,7 @@ import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 
-private const val SCHEMA_VERSION = 1L
+private const val SCHEMA_VERSION = 2L
 private const val MAX_INSTALLMENTS = 400
 
 /**
@@ -436,7 +436,8 @@ class Db(
     // ---- Budgets ----
 
     /**
-     * New budget at the end of the manual order, with [limit] for [today]'s month. Refused
+     * New budget at the end of the manual order, with [limit] for [today]'s month, under an id never
+     * used before (not even by a deleted budget: a stale screen or widget can't open another one). Refused
      * (BudgetId(0)) for a blank name, a name already used (ignoring case) or limit ≤ 0.
      */
     suspend fun createBudget(name: String, limit: Cents, today: LocalDate): BudgetId {
@@ -924,6 +925,14 @@ class Db(
             "CREATE INDEX transaction_tags_tag ON transaction_tags(tag_id)",
         )
 
+        /** v2: budget ids are never reused (AUTOINCREMENT). */
+        val SCHEMA_V2 = listOf(
+            "CREATE TABLE budgets_v2(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL COLLATE NOCASE UNIQUE, position INTEGER NOT NULL)",
+            "INSERT INTO budgets_v2(id, name, position) SELECT id, name, position FROM budgets",
+            "DROP TABLE budgets",
+            "ALTER TABLE budgets_v2 RENAME TO budgets",
+        )
+
         /** One `if (v < N)` per version, each in a transaction that ends by writing N (architecture §4). */
         fun migrate(c: SQLiteConnection) {
             val v = c.long("PRAGMA user_version")
@@ -931,6 +940,12 @@ class Db(
                 c.execSQL("BEGIN IMMEDIATE")
                 SCHEMA_V1.forEach(c::execSQL)
                 c.execSQL("PRAGMA user_version = 1")
+                c.execSQL("COMMIT")
+            }
+            if (v < 2) {
+                c.execSQL("BEGIN IMMEDIATE")
+                SCHEMA_V2.forEach(c::execSQL)
+                c.execSQL("PRAGMA user_version = 2")
                 c.execSQL("COMMIT")
             }
         }

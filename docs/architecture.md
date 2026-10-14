@@ -109,7 +109,8 @@ CREATE TABLE notices(
   dismissed INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE TABLE budgets(id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE, position INTEGER NOT NULL);
+-- AUTOINCREMENT (v2): id de verba apagada nunca volta; tela restaurada ou widget com o id antigo não abre outra verba.
+CREATE TABLE budgets(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL COLLATE NOCASE UNIQUE, position INTEGER NOT NULL);
 
 -- Cota de cada mês (D8, D30).
 CREATE TABLE budget_months(budget_id INTEGER NOT NULL, month TEXT NOT NULL, limit_cents INTEGER NOT NULL,
