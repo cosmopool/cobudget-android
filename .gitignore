@@ -13,5 +13,6 @@
 *.aab
 *.keystore
 *.jks
+!/androidApp/debug.keystore
 kls_database.db
 /shared/build/

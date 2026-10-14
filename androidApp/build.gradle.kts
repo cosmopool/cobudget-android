@@ -16,7 +16,21 @@ android {
         versionName = "0.1.0"
     }
 
+    // Debug key in the repo, so every machine signs debug builds the same way and an install
+    // over another machine's build doesn't need an uninstall (which would erase the data).
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
