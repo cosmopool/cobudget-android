@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,6 +41,11 @@ import com.kaiodelphino.margem.widgets.ChipState
 import com.kaiodelphino.margem.widgets.DayHeader
 import com.kaiodelphino.margem.widgets.DayPicker
 import com.kaiodelphino.margem.widgets.DialogCard
+import kotlinx.datetime.LocalTime
+import com.kaiodelphino.margem.widgets.time
+import com.kaiodelphino.margem.widgets.dateLong
+import com.kaiodelphino.margem.widgets.Emenda
+import com.kaiodelphino.margem.widgets.DateTimeDialog
 import com.kaiodelphino.margem.widgets.EmptyState
 import com.kaiodelphino.margem.widgets.Field
 import com.kaiodelphino.margem.widgets.Gap
@@ -108,8 +114,10 @@ private fun notice(app: String, body: String, cents: Long = 0, merchant: String 
 @Composable
 private fun Catalog(dark: Boolean, setDark: (Boolean) -> Unit) {
     val c = Margem.colors
-    val snack = remember { SnackHost() }
+    val snack = SnackHost(rememberCoroutineScope())
     var dialog by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf(false) }
+    var picked by remember { mutableStateOf(LocalDate(2026, 10, 8) to LocalTime(23, 10)) }
     Box(Modifier.fillMaxSize().background(c.paper).windowInsetsPadding(WindowInsets.statusBars)) {
         Column(Modifier.verticalScroll(rememberScrollState())) {
             TopBar("Catálogo")
@@ -254,6 +262,11 @@ private fun Catalog(dark: Boolean, setDark: (Boolean) -> Unit) {
                 }
                 Button("Mostrar snackbar", { snack.show(Snack("Recado riscado.", "Desfazer")) }, Modifier.padding(top = 8.dp), kind = ButtonKind.SECONDARY)
 
+                SectionLine("8.9 Data e hora")
+                Text("${dateLong(picked.first)} · ${time(picked.second)}", serif(19, 400, 24, tabular = true), Modifier.padding(top = 12.dp))
+                Emenda("qui, 8 out, 23:10", { picked = LocalDate(2026, 10, 8) to LocalTime(23, 10) })
+                Button("Abrir data e hora", { picking = true }, Modifier.padding(top = 8.dp), kind = ButtonKind.SECONDARY)
+
                 SectionLine("6.3 Ícones · 3 Marca")
                 FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     for (id in ICONS) Icon(id, size = 32.dp)
@@ -267,6 +280,7 @@ private fun Catalog(dark: Boolean, setDark: (Boolean) -> Unit) {
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp))
     }
+    if (picking) DateTimeDialog(picked.first, picked.second, LocalDate(2026, 10, 9), DayOfWeek.MONDAY, { d, t -> picked = d to t }, { picking = false })
     if (dialog) MargemDialog("Mudar o início da semana?", "As edições de passo de outubro em diante são apagadas, em todas as verbas, e os passos voltam ao padrão.", "Mudar", { dialog = false }, { dialog = false })
 }
 

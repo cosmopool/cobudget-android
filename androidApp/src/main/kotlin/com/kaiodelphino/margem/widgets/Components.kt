@@ -12,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,12 +37,14 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +67,9 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -71,6 +78,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
@@ -91,12 +99,19 @@ import com.kaiodelphino.margem.NoticeRow
 import com.kaiodelphino.margem.PaceStatus
 import com.kaiodelphino.margem.R
 import com.kaiodelphino.margem.Week
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.YearMonth
+import kotlinx.datetime.isoDayNumber
+import kotlinx.datetime.minusMonth
+import kotlinx.datetime.onDay
+import kotlinx.datetime.plusMonth
+import kotlinx.datetime.yearMonth
 import kotlinx.datetime.toLocalDateTime
 import kotlin.math.sqrt
 import kotlin.time.Instant
@@ -278,7 +293,8 @@ private fun Modifier.fieldLine(focused: Boolean, error: Boolean, enabled: Boolea
 fun Field(
     value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier,
     placeholder: String = "", hint: String = "", error: String = "", enabled: Boolean = true,
-    alias: Boolean = false, focused: Boolean = false, tag: String = "", trailing: @Composable (() -> Unit)? = null,
+    alias: Boolean = false, focused: Boolean = false, tag: String = "", onDone: (() -> Unit)? = null,
+    trailing: @Composable (() -> Unit)? = null,
 ) {
     val c = Margem.colors
     val interaction = remember { MutableInteractionSource() }
@@ -290,6 +306,8 @@ fun Field(
             value, onChange, Modifier.fillMaxWidth().then(if (tag.isEmpty()) Modifier else Modifier.testTag(tag)), enabled = enabled, readOnly = !enabled, onTextLayout = { layout = it },
             textStyle = serif(19, 400, 24).copy(color = if (enabled) c.ink else c.inkTertiary),
             singleLine = true, interactionSource = interaction, cursorBrush = SolidColor(c.info),
+            keyboardOptions = if (onDone == null) KeyboardOptions.Default else KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onDone?.invoke() }),
             decorationBox = { inner ->
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 48.dp).fieldLine(isFocused, error.isNotEmpty(), enabled, c),
@@ -420,27 +438,28 @@ fun Emenda(original: String, onUndo: () -> Unit, tag: String = "") {
     }
 }
 
-/** Book `.stepper`: − n +, for Parcelas and "Mês começa no dia". */
+/** Book `.stepper`: − n +, for Parcelas and "Mês começa no dia". [tag]: the number, "$tag.minus", "$tag.plus" (D35). */
 @Composable
-fun Stepper(value: Int, onChange: (Int) -> Unit, range: IntRange, modifier: Modifier = Modifier) {
+fun Stepper(value: Int, onChange: (Int) -> Unit, range: IntRange, modifier: Modifier = Modifier, tag: String = "") {
     val c = Margem.colors
     Row(modifier.border(1.dp, c.ruleStrong, RoundedCornerShape(4.dp)), verticalAlignment = Alignment.CenterVertically) {
-        StepperKey("−", value > range.first) { onChange(value - 1) }
+        StepperKey("−", value > range.first, if (tag.isEmpty()) "" else "$tag.minus") { onChange(value - 1) }
         Text(
             value.toString(), serif(22, 500, 28, tabular = true),
-            Modifier.widthIn(min = 56.dp).height(44.dp).drawBehind {
+            Modifier.then(if (tag.isEmpty()) Modifier else Modifier.testTag(tag)).widthIn(min = 56.dp).height(44.dp).drawBehind {
                 drawLine(c.rule, Offset(0f, 0f), Offset(0f, size.height), 1.dp.toPx())
                 drawLine(c.rule, Offset(size.width, 0f), Offset(size.width, size.height), 1.dp.toPx())
             }.padding(top = 8.dp, start = 8.dp, end = 8.dp),
             align = TextAlign.Center,
         )
-        StepperKey("+", value < range.last) { onChange(value + 1) }
+        StepperKey("+", value < range.last, if (tag.isEmpty()) "" else "$tag.plus") { onChange(value + 1) }
     }
 }
 
 @Composable
-private fun StepperKey(sign: String, enabled: Boolean, onClick: () -> Unit) = Box(
-    Modifier.size(48.dp, 44.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick), contentAlignment = Alignment.Center,
+private fun StepperKey(sign: String, enabled: Boolean, tag: String, onClick: () -> Unit) = Box(
+    Modifier.size(48.dp, 44.dp).then(if (tag.isEmpty()) Modifier else Modifier.testTag(tag)).clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+    contentAlignment = Alignment.Center,
 ) { Text(sign, sans(20f, 500, 24f), color = if (enabled) Margem.colors.ink else Margem.colors.inkTertiary) }
 
 /** Book `.days`: the seven days, the chosen one in ink ("Semana começa na"). */
@@ -541,6 +560,7 @@ fun noticeTime(postedAt: Long): String = time(Instant.fromEpochMilliseconds(post
 fun NoticeCard(
     notice: NoticeRow, onAccept: () -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier,
     time: String = noticeTime(notice.raw.postedAt), acceptEnabled: Boolean = true,
+    acceptTag: String = "", dismissTag: String = "", newTag: String = "",
 ) {
     val c = Margem.colors
     val ad = notice.looksLikeAd
@@ -557,6 +577,8 @@ fun NoticeCard(
             }
             .padding(start = if (notice.isNew) 24.dp else 16.dp, top = 12.dp, end = 14.dp, bottom = 4.dp),
     ) {
+        // The double rule of a new notice, as a node of its own for the tests (D35).
+        if (notice.isNew && newTag.isNotEmpty()) Spacer(Modifier.size(0.dp).semantics(mergeDescendants = true) { testTag = newTag })
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(notice.raw.appLabel.uppercase(), sans(11f, 600, 14f, 0.1f), Modifier.weight(1f), c.inkTertiary, maxLines = 1)
             Text(time, sans(11f, 600, 14f, 0.1f, tabular = true), color = c.inkTertiary)
@@ -581,18 +603,20 @@ fun NoticeCard(
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+            val accept = if (acceptTag.isEmpty()) Modifier else Modifier.testTag(acceptTag)
+            val dismiss = if (dismissTag.isEmpty()) Modifier else Modifier.testTag(dismissTag)
             when {
                 ad -> {
-                    Button("Lançar mesmo assim", onAccept, kind = ButtonKind.TEXT, small = true, enabled = acceptEnabled)
-                    Button("Riscar", onDismiss, icon = R.drawable.i_riscar, small = true)
+                    Button("Lançar mesmo assim", onAccept, accept, kind = ButtonKind.TEXT, small = true, enabled = acceptEnabled)
+                    Button("Riscar", onDismiss, dismiss, icon = R.drawable.i_riscar, small = true)
                 }
                 refund -> {
-                    Button("Riscar", onDismiss, kind = ButtonKind.DISMISS, icon = R.drawable.i_riscar, small = true)
-                    Button("Registrar estorno", onAccept, icon = R.drawable.i_estorno, small = true, enabled = acceptEnabled)
+                    Button("Riscar", onDismiss, dismiss, kind = ButtonKind.DISMISS, icon = R.drawable.i_riscar, small = true)
+                    Button("Registrar estorno", onAccept, accept, icon = R.drawable.i_estorno, small = true, enabled = acceptEnabled)
                 }
                 else -> {
-                    Button("Riscar", onDismiss, kind = ButtonKind.DISMISS, icon = R.drawable.i_riscar, small = true)
-                    Button("Lançar", onAccept, small = true, enabled = acceptEnabled)
+                    Button("Riscar", onDismiss, dismiss, kind = ButtonKind.DISMISS, icon = R.drawable.i_riscar, small = true)
+                    Button("Lançar", onAccept, accept, small = true, enabled = acceptEnabled)
                 }
             }
         }
@@ -962,10 +986,13 @@ object SnackTags {
 }
 
 /** One snackbar: text and, when undoable, an action (book §8.8). */
-class Snack(val text: String, val action: String = "", val onAction: () -> Unit = {})
+class Snack(val text: String, val action: String = "", val onAction: suspend () -> Unit = {})
 
-/** Holds the snackbar on screen; [show] replaces the current one. */
-class SnackHost {
+/**
+ * Holds the snackbar on screen; [show] replaces the current one. Actions run on [scope], the App's: a
+ * Desfazer still works after the screen that showed it is gone.
+ */
+class SnackHost(val scope: CoroutineScope) {
     var current by mutableStateOf<Snack?>(null)
     fun show(snack: Snack) {
         current = snack
@@ -1005,7 +1032,7 @@ fun SnackbarHost(host: SnackHost, modifier: Modifier = Modifier) {
         val s = last ?: return@AnimatedVisibility
         Snackbar(s.text, Modifier.padding(horizontal = 16.dp, vertical = 12.dp), s.action) {
             host.current = null
-            s.onAction()
+            host.scope.launch { s.onAction() }
         }
     }
 }
@@ -1064,7 +1091,126 @@ object DateTimeTags {
 fun DateTimeDialog(
     date: LocalDate, time: LocalTime, today: LocalDate, weekStart: DayOfWeek,
     onDone: (LocalDate, LocalTime) -> Unit, onDismiss: () -> Unit,
-): Unit = TODO()
+) {
+    val c = Margem.colors
+    var chosen by rememberSaveable { mutableStateOf(date.toString()) }
+    var shown by rememberSaveable { mutableStateOf(date.yearMonth.toString()) }
+    var digits by rememberSaveable { mutableStateOf((time.hour * 100 + time.minute).toString().trimStart('0')) }
+    var error by rememberSaveable { mutableStateOf(false) }
+    val day = LocalDate.parse(chosen)
+    val month = YearMonth.parse(shown)
+    Dialog(onDismiss, DialogProperties(usePlatformDefaultWidth = false)) {
+        (LocalView.current.parent as? DialogWindowProvider)?.window?.setDimAmount(if (c.isDark) 0.6f else 0.45f)
+        val shape = RoundedCornerShape(8.dp)
+        Column(
+            Modifier.testTag(DateTimeTags.DIALOG).padding(horizontal = 12.dp).widthIn(max = 336.dp).fillMaxWidth()
+                .shadow(14.dp, shape, ambientColor = c.shadow, spotColor = c.shadow).background(c.surface, shape)
+                .verticalScroll(rememberScrollState()).padding(top = 22.dp, bottom = 12.dp),
+        ) {
+            Text("DATA E HORA", sans(11f, 600, 14f, 0.12f), Modifier.padding(horizontal = 24.dp), c.inkTertiary)
+            Text(dateLong(day), serif(22, 500, 28), Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 6.dp).testTag(DateTimeTags.TITLE))
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(R.drawable.i_voltar, { shown = month.minusMonth().toString() }, Modifier.testTag(DateTimeTags.PREV))
+                Text(monthTitle(month), serif(17, 500, 22), Modifier.weight(1f).testTag(DateTimeTags.MONTH), align = TextAlign.Center)
+                val canNext = month < today.yearMonth
+                IconButton(R.drawable.i_avancar, { shown = month.plusMonth().toString() }, Modifier.testTag(DateTimeTags.NEXT), dim = !canNext, enabled = canNext)
+            }
+            val order = List(7) { DayOfWeek((weekStart.isoDayNumber - 1 + it) % 7 + 1) }
+            Row(Modifier.fillMaxWidth().clearAndSetSemantics { testTag = DateTimeTags.WEEKDAYS; this[SemanticsProperties.Text] = order.map { AnnotatedString(weekdayShort(it)) } }) {
+                for (d in order) Text(weekdayShort(d).uppercase(), sans(10.5f, 600, 28f, 0.06f), Modifier.weight(1f), c.inkTertiary, align = TextAlign.Center)
+            }
+            // The month's grid: blanks before the 1st, then one cell per day, 7 per row.
+            val first = month.onDay(1)
+            val blanks = (first.dayOfWeek.isoDayNumber - weekStart.isoDayNumber).mod(7)
+            val cells = List(blanks) { 0 } + (1..month.numberOfDays).toList()
+            for (row in cells.chunked(7)) Row(Modifier.fillMaxWidth()) {
+                for (i in 0 until 7) {
+                    val n = row.getOrElse(i) { 0 }
+                    if (n == 0) {
+                        Spacer(Modifier.weight(1f).height(48.dp))
+                        continue
+                    }
+                    val d = month.onDay(n)
+                    val on = d == day
+                    val future = d > today
+                    Box(
+                        Modifier.weight(1f).height(48.dp).testTag(DateTimeTags.DAY + d).semantics { selected = on }
+                            .clickable(enabled = !future, role = Role.RadioButton) { chosen = d.toString() },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            Modifier.size(40.dp).background(if (on) c.ink else Color.Transparent, RoundedCornerShape(3.dp)).drawBehind {
+                                if (d == today) drawRect(c.brand, Offset(0f, size.height - (if (on) 3 else 2).dp.toPx()), Size(size.width, (if (on) 3 else 2).dp.toPx()))
+                            },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                n.toString(), serif(15, if (d == today) 600 else if (future) 400 else 500, 20, tabular = true),
+                                color = when {
+                                    on -> c.paper
+                                    d == today -> c.brand
+                                    future -> c.inkTertiary
+                                    else -> c.ink
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+            TimeField(digits, { digits = it; error = false }, error, Modifier.padding(start = 24.dp, end = 24.dp, top = 6.dp))
+            Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) {
+                Button("Cancelar", onDismiss, Modifier.testTag(DateTimeTags.CANCEL), kind = ButtonKind.TEXT)
+                Button("Pronto", {
+                    val n = digits.ifEmpty { "0" }.toInt()
+                    if (n / 100 > 23 || n % 100 > 59) error = true
+                    else { onDone(day, LocalTime(n / 100, n % 100)); onDismiss() }
+                }, Modifier.testTag(DateTimeTags.DONE), kind = ButtonKind.TEXT)
+            }
+        }
+    }
+}
+
+/** "HH:MM" filled from the right (book 8.9): typed digits are the minutes first, like cents. */
+private class TimeTransformation(val dim: Color) : androidx.compose.ui.text.input.VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val d = text.text.padStart(4, '0')
+        val pad = 4 - text.text.length
+        val shown = buildAnnotatedString {
+            for ((i, ch) in "${d.take(2)}:${d.drop(2)}".withIndex()) {
+                val dimmed = (if (i < 2) i else i - 1) < pad
+                if (dimmed) withStyle(SpanStyle(color = dim)) { append(ch) } else append(ch)
+            }
+        }
+        val length = text.text.length
+        return TransformedText(shown, object : OffsetMapping {
+            override fun originalToTransformed(offset: Int) = shown.length
+            override fun transformedToOriginal(offset: Int) = length
+        })
+    }
+}
+
+@Composable
+private fun TimeField(digits: String, onChange: (String) -> Unit, error: Boolean, modifier: Modifier) {
+    val c = Margem.colors
+    val interaction = remember { MutableInteractionSource() }
+    val focused = interaction.collectIsFocusedAsState().value
+    Column(modifier.padding(top = 8.dp, bottom = 6.dp)) {
+        FieldLabel("Hora", if (error) c.overrun else if (focused) c.ink else c.inkTertiary)
+        BasicTextField(
+            TextFieldValue(digits, androidx.compose.ui.text.TextRange(digits.length)),
+            { v -> onChange(v.text.filter(Char::isDigit).trimStart('0').take(4)) },
+            Modifier.fillMaxWidth().testTag(DateTimeTags.TIME),
+            textStyle = serif(19, 400, 24, tabular = true).copy(color = c.ink),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true, interactionSource = interaction, cursorBrush = SolidColor(c.info),
+            visualTransformation = TimeTransformation(c.inkTertiary),
+            decorationBox = { inner ->
+                Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).fieldLine(focused, error, true, c), contentAlignment = Alignment.CenterStart) { inner() }
+            },
+        )
+        FieldHint("", if (error) "A hora vai de 00:00 a 23:59." else "", DateTimeTags.TIME)
+    }
+}
 
 /** Spacer shorthand for vertical rhythm. */
 @Composable

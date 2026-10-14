@@ -1,6 +1,6 @@
 # Margem — arquitetura
 
-Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33; bloco 2 do `androidApp`, D1, D16, D23, D28, D33, §7; bloco 3, Verbas, D34–D35, §5–§7, §10; bloco 4, ciclo do recado, D36, §7, §9, §10). O que está em §11 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33; bloco 2 do `androidApp`, D1, D16, D23, D28, D33, §7; bloco 3, Verbas, D34–D35, §5–§7, §10; bloco 4, ciclo do recado, D36–D37, §7, §9, §10). O que está em §11 espera resposta, uma por vez.
 Produto: [spec.md](spec.md). Vocabulário: [glossary.md](glossary.md). Visual: [design_system.html](design_system.html).
 Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o miolo, testes de integração.
 
@@ -43,6 +43,7 @@ Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o
 | D34 | **Ordem dos blocos**: 1 `shared` · 2 fundação do `androidApp` · **3 Verbas** · 4 ciclo do recado (Pauta, lançar/editar, estorno, Lançamentos) · 5 Ajustes + importação · 6 Leitura · 7 widgets. | Lançar exige uma verba: as Verbas vêm antes do ciclo do recado. |
 | D35 | **Testes de UI acham elementos por `testTag`**: cada arquivo de tela tem um objeto de tags (`BudgetTags` em `ui/Budgets.kt`), uma `const val` por elemento que os testes tocam ou leem, com KDoc dizendo o que ele mostra. O objeto é parte do contrato do bloco. | A rodada de agentes escreve testes de UI antes das telas existirem; as tags fixas são a API pública da tela. Texto muda com o glossário; a tag não. |
 | D36 | **Seletor de data e hora próprio** (`DateTimeDialog` em `widgets/Components.kt`, book 8.9), sem o `DatePicker` do Material: grade do mês com a semana dos Ajustes, dias futuros desabilitados, hora HH:MM. Tags em `DateTimeTags`. | D15: sem Material 3. Um componente, usado pelo formulário de lançar/editar/manual. |
+| D37 | **Datas de 0001-01-01 a 9999-12-31**: lançar, lançamento manual e editar recusam o formulário quando alguma parcela cai fora desse intervalo (decidido na triagem do bloco 4). Nas leituras, os limites de um mês são presos ao intervalo, para um mês que o atravessa (dezembro de 9999 com início no dia 15) achar as suas parcelas. | Datas são texto ISO (§3), que só ordena como data nos anos 0001–9999: "+10000-01-31" viria antes de "0001-01-01". Recusar na fronteira mantém o texto ordenável sem migrar o schema. |
 | D33 | **Encerrada no bloco 2**: `app/` (cobudget) ficou no build até o bloco do `androidApp` e foi removido no começo dele; o build é `:shared` + `:androidApp`. O que ainda serve de base (listener, `loadLauncherApps`, casos do `CaptureTest`) é lido do histórico (`git show 7616cd2:app/...`). | O cobudget não será mais usado. A importação do backup `.db` dele (D3, D4) continua e não depende do código de `app/`. |
 
 ## 2. Componentes

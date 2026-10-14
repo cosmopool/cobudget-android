@@ -210,7 +210,7 @@ class Db(
             val old = settings(c).monthStartDay
             if (old != day) {
                 val cut = minOf(monthWindow(monthOf(today, old), old).start, monthWindow(monthOf(today, day), day).start)
-                c.exec("DELETE FROM week_steps WHERE week_start >= ?", cut.toString())
+                c.exec("DELETE FROM week_steps WHERE week_start >= ?", cut.low())
                 setSetting(c, "month_start_day", day.toString())
             }
         }
@@ -221,7 +221,7 @@ class Db(
     suspend fun setWeekStart(day: DayOfWeek, today: LocalDate): Unit = write { c ->
         val s = settings(c)
         if (s.weekStart != day) {
-            c.exec("DELETE FROM week_steps WHERE week_start >= ?", monthWindow(monthOf(today, s.monthStartDay), s.monthStartDay).start.toString())
+            c.exec("DELETE FROM week_steps WHERE week_start >= ?", monthWindow(monthOf(today, s.monthStartDay), s.monthStartDay).start.low())
             setSetting(c, "week_start", day.isoDayNumber.toString())
         }
     }
@@ -297,7 +297,8 @@ class Db(
     /**
      * Lançar: turns a pending notice into a transaction. Refused (TransactionId(0), nothing written)
      * unless the notice is pending, [TransactionForm.budget] exists, at least one tag remains after
-     * cleaning, total > 0 and installments in 1..400.
+     * cleaning, total > 0, installments in 1..400 and every installment dated in 0001-01-01..9999-12-31
+     * (dates are stored as ISO text, which sorts only in that range).
      *
      * Writes the transaction, its installments and its tags in one transaction: installment k
      * (1..n) is dated purchase date + (k−1) months, moved to the nearest day inside the k-th
@@ -333,7 +334,17 @@ class Db(
      * All transactions, newest (date, time, then id) first. With [today], each row's [TransactionRow.now]
      * is its installment dated in today's budget month (zero when none is); without it, every `now` is zero.
      */
-    suspend fun transactions(today: LocalDate = NO_DATE): List<TransactionRow> = TODO()
+    suspend fun transactions(today: LocalDate = NO_DATE): List<TransactionRow> = read { c ->
+        val rows = transactionRows(c, "")
+        if (today == NO_DATE || rows.isEmpty()) return@read rows
+        val day = settings(c).monthStartDay
+        val w = monthWindow(monthOf(today, day), day)
+        // At most one installment of a transaction falls in a month (D7).
+        val now = c.query(
+            "SELECT transaction_id, k, date, cents FROM installments WHERE date BETWEEN ? AND ?", w.start.low(), w.endInclusive.high(),
+        ) { it.getLong(0) to Installment(it.getInt(1), LocalDate.parse(it.getText(2)), Cents(it.getLong(3))) }.toMap()
+        rows.map { r -> now[r.id.v]?.let { r.copy(now = it) } ?: r }
+    }
 
     /** Zero detail when unknown. */
     suspend fun transaction(id: TransactionId): TransactionDetail = read { c ->
@@ -364,6 +375,7 @@ class Db(
         if (total.v !in 1..MAX_CENTS || installments !in 1..MAX_INSTALLMENTS) return@read Preview()
         if (c.long("SELECT COUNT(*) FROM budgets WHERE id = ?", budget.v) == 0L) return@read Preview()
         val s = settings(c)
+        if (date !in FIRST_DATE..LAST_DATE || installmentDate(date, installments, s.monthStartDay) !in FIRST_DATE..LAST_DATE) return@read Preview()
         val month = monthOf(date, s.monthStartDay)
         val window = monthWindow(month, s.monthStartDay)
         val limit = c.long("SELECT COALESCE(MAX(limit_cents), 0) FROM budget_months WHERE budget_id = ? AND month = ?", budget.v, month.toString())
@@ -404,7 +416,18 @@ class Db(
      * counting. Like [previewAccept], it doesn't need [today]'s month to be the purchase's. Writes nothing.
      * Zero when the transaction is unknown or already refunded.
      */
-    suspend fun previewRefund(purchase: TransactionId, today: LocalDate): Preview = TODO()
+    suspend fun previewRefund(purchase: TransactionId, today: LocalDate): Preview = read { c ->
+        val t = c.query(
+            "SELECT budget_id, date FROM transactions t WHERE id = ? AND $NOT_REFUNDED", purchase.v,
+        ) { it.getLong(0) to LocalDate.parse(it.getText(1)) }.firstOrNull() ?: return@read Preview()
+        val day = settings(c).monthStartDay
+        val month = monthOf(t.second, day)
+        val window = monthWindow(month, day)
+        val limit = c.long("SELECT COALESCE(MAX(limit_cents), 0) FROM budget_months WHERE budget_id = ? AND month = ?", t.first, month.toString())
+        val before = limit - spentIn(c, "t.budget_id = ?", t.first, window.start, window.endInclusive)
+        val back = spentIn(c, "t.budget_id = ? AND t.id = ?", t.first, window.start, window.endInclusive, purchase.v)
+        Preview(month, Cents(before), Cents(before + back))
+    }
 
     /** Desfazer estorno: the purchase counts again; the estorno (and a purchase notice) are pending again. */
     suspend fun undoRefund(estorno: NoticeId): Boolean = write { c ->
@@ -493,7 +516,7 @@ class Db(
             c.exec("INSERT OR IGNORE INTO budget_months(budget_id, month, limit_cents) VALUES (?, ?, ?)", id.v, current.toString(), limit.v)
             c.exec("UPDATE budget_months SET limit_cents = ? WHERE budget_id = ? AND month >= ?", limit.v, id.v, current.toString())
             for (w in editsOver(c, id.v, limit.v, today)) {
-                c.exec("DELETE FROM week_steps WHERE budget_id = ? AND week_start BETWEEN ? AND ?", id.v, w.start.toString(), w.endInclusive.toString())
+                c.exec("DELETE FROM week_steps WHERE budget_id = ? AND week_start BETWEEN ? AND ?", id.v, w.start.low(), w.endInclusive.high())
             }
             true
         }
@@ -587,8 +610,8 @@ class Db(
     suspend fun budgetDetail(id: BudgetId, month: YearMonth, today: LocalDate): BudgetDetail = read { c ->
         val name = c.query("SELECT name FROM budgets WHERE id = ?", id.v) { it.getText(0) }.firstOrNull() ?: return@read BudgetDetail()
         val bm = budgetMonth(c, settings(c), id.v, month, today)
-        val from = bm.start.toString()
-        val to = bm.end.toString()
+        val from = bm.start.low()
+        val to = bm.end.high()
         val rows = transactionRows(
             c, "WHERE t.budget_id = ? AND EXISTS (SELECT 1 FROM installments i WHERE i.transaction_id = t.id AND i.date BETWEEN ? AND ?)", id.v, from, to,
         ).associateBy { it.id.v }
@@ -681,7 +704,7 @@ class Db(
             "SELECT g.name, SUM(i.cents), COUNT(DISTINCT t.id) FROM installments i JOIN transactions t ON t.id = i.transaction_id " +
                 "JOIN transaction_tags l ON l.transaction_id = t.id JOIN tags g ON g.id = l.tag_id " +
                 "WHERE i.date BETWEEN ? AND ? AND $NOT_REFUNDED GROUP BY g.id ORDER BY 2 DESC, g.name",
-            from.toString(), to.toString(),
+            from.low(), to.high(),
         ) { RankRow(it.getText(0), Cents(it.getLong(1)), it.getInt(2)) }
     }
 
@@ -691,7 +714,7 @@ class Db(
             "SELECT COALESCE(a.alias, MAX(t.merchant)), SUM(i.cents), COUNT(DISTINCT t.id) FROM installments i " +
                 "JOIN transactions t ON t.id = i.transaction_id LEFT JOIN merchant_aliases a ON a.merchant_key = t.merchant_key " +
                 "WHERE i.date BETWEEN ? AND ? AND $NOT_REFUNDED GROUP BY t.merchant_key ORDER BY 2 DESC, 1",
-            from.toString(), to.toString(),
+            from.low(), to.high(),
         ) { RankRow(it.getText(0), Cents(it.getLong(1)), it.getInt(2)) }
     }
 
@@ -700,7 +723,7 @@ class Db(
         c.query(
             "SELECT i.date, SUM(i.cents) FROM installments i JOIN transactions t ON t.id = i.transaction_id " +
                 "WHERE i.date BETWEEN ? AND ? AND $NOT_REFUNDED GROUP BY i.date HAVING SUM(i.cents) > 0 ORDER BY i.date",
-            from.toString(), to.toString(),
+            from.low(), to.high(),
         ) { LocalDate.parse(it.getText(0)) to Cents(it.getLong(1)) }.toMap()
     }
 
@@ -740,12 +763,12 @@ class Db(
         val limit = c.long("SELECT COALESCE(MAX(limit_cents), 0) FROM budget_months WHERE budget_id = ? AND month = ?", budget, month.toString())
         val edits = c.query(
             "SELECT week_start, cents FROM week_steps WHERE budget_id = ? AND week_start BETWEEN ? AND ?",
-            budget, w.start.toString(), w.endInclusive.toString(),
+            budget, w.start.low(), w.endInclusive.high(),
         ) { LocalDate.parse(it.getText(0)) to Cents(it.getLong(1)) }.toMap()
         val spent = c.query(
             "SELECT i.date, SUM(i.cents) FROM installments i JOIN transactions t ON t.id = i.transaction_id " +
                 "WHERE t.budget_id = ? AND i.date BETWEEN ? AND ? AND $NOT_REFUNDED GROUP BY i.date",
-            budget, w.start.toString(), w.endInclusive.toString(),
+            budget, w.start.low(), w.endInclusive.high(),
         ) { LocalDate.parse(it.getText(0)) to Cents(it.getLong(1)) }.toMap()
         return budgetMonth(month, s.monthStartDay, s.weekStart, today, Cents(limit), edits, spent)
     }
@@ -755,7 +778,7 @@ class Db(
         val day = settings(c).monthStartDay
         val edits = c.query(
             "SELECT week_start, cents FROM week_steps WHERE budget_id = ? AND week_start >= ?",
-            budget, monthWindow(monthOf(today, day), day).start.toString(),
+            budget, monthWindow(monthOf(today, day), day).start.low(),
         ) { LocalDate.parse(it.getText(0)) to it.getLong(1) }
         return edits.groupBy { monthOf(it.first, day) }.filter { (_, inMonth) -> inMonth.sumOf { it.second } > limit }.map { monthWindow(it.key, day) }
     }
@@ -765,7 +788,7 @@ class Db(
         c.long(
             "SELECT COALESCE(SUM(i.cents), 0) FROM installments i JOIN transactions t ON t.id = i.transaction_id " +
                 "WHERE $where AND i.date BETWEEN ? AND ? AND $NOT_REFUNDED",
-            budget, *more, from.toString(), to.toString(),
+            budget, *more, from.low(), to.high(),
         )
 
     /** Budget names are unique ignoring case, accents' case included ("Zé" = "ZÉ"): NOCASE only folds ASCII. */
@@ -839,6 +862,9 @@ class Db(
         val tags = form.tags.map { it.trim().lowercase() }.filter(String::isNotEmpty).distinct()
         if (tags.isEmpty() || form.total.v !in 1..MAX_CENTS || form.installments !in 1..MAX_INSTALLMENTS) return 0
         if (c.long("SELECT COUNT(*) FROM budgets WHERE id = ?", form.budget.v) == 0L) return 0
+        val day = settings(c).monthStartDay
+        val dates = (1..form.installments).map { installmentDate(form.date, it, day) }
+        if (dates.any { it !in FIRST_DATE..LAST_DATE }) return 0
         val merchant = storable(form.merchant.trim())
         val corrected = notice != 0L && extract(notice(c, notice).raw, timeZone).let {
             it.cents != form.total || it.merchant != merchant || it.date != form.date || it.time != form.time
@@ -861,10 +887,9 @@ class Db(
         }
         val n = form.installments
         val each = form.total.v / n
-        val day = settings(c).monthStartDay
         for (k in 1..n) {
             val cents = if (k == n) form.total.v - each * (n - 1) else each
-            c.exec("INSERT INTO installments(transaction_id, k, date, cents) VALUES (?, ?, ?, ?)", txId, k, installmentDate(form.date, k, day).toString(), cents)
+            c.exec("INSERT INTO installments(transaction_id, k, date, cents) VALUES (?, ?, ?, ?)", txId, k, dates[k - 1].toString(), cents)
         }
         for (name in tags) c.exec("INSERT OR IGNORE INTO transaction_tags(transaction_id, tag_id) VALUES (?, ?)", txId, tagId(c, name))
         if (form.alias.isNotBlank() && key.isNotEmpty()) saveAlias(c, key, form.alias)
@@ -1012,6 +1037,19 @@ internal fun SQLiteConnection.long(sql: String, vararg args: Any): Long =
         st.bindAll(args)
         if (st.step() && !st.isNull(0)) st.getLong(0) else 0L
     }
+
+/** The range of storable dates: ISO text sorts as dates only for years 0001..9999. */
+private val FIRST_DATE = LocalDate(1, 1, 1)
+private val LAST_DATE = LocalDate(9999, 12, 31)
+
+/**
+ * A date as the lower or upper bound of a SQL range, in text that compares right with every stored date:
+ * clamped into the storable range, so a month crossing its edge still finds its rows, and past it on the
+ * far side ("9999-12-32", "0000-12-31") so a range wholly outside it finds none.
+ */
+private fun LocalDate.low(): String = if (this > LAST_DATE) "9999-12-32" else maxOf(this, FIRST_DATE).toString()
+
+private fun LocalDate.high(): String = if (this < FIRST_DATE) "0000-12-31" else minOf(this, LAST_DATE).toString()
 
 private fun SQLiteConnection.changes() = long("SELECT changes()")
 

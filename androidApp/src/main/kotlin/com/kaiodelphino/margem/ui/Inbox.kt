@@ -1,13 +1,79 @@
 package com.kaiodelphino.margem.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import com.kaiodelphino.margem.Cents
 import com.kaiodelphino.margem.Db
+import com.kaiodelphino.margem.NO_MONTH
+import com.kaiodelphino.margem.NO_TIME
 import com.kaiodelphino.margem.NoticeId
+import com.kaiodelphino.margem.NoticeRow
+import com.kaiodelphino.margem.NoticeStatus
+import com.kaiodelphino.margem.R
+import com.kaiodelphino.margem.RefundCandidate
+import com.kaiodelphino.margem.accessSettingsIntent
+import com.kaiodelphino.margem.widgets.Amount
+import com.kaiodelphino.margem.widgets.Button
+import com.kaiodelphino.margem.widgets.ButtonKind
+import com.kaiodelphino.margem.widgets.CapturePaused
+import com.kaiodelphino.margem.widgets.Check
+import com.kaiodelphino.margem.widgets.DayHeader
+import com.kaiodelphino.margem.widgets.EmptyState
+import com.kaiodelphino.margem.widgets.Field
+import com.kaiodelphino.margem.widgets.Icon
+import com.kaiodelphino.margem.widgets.Margem
+import com.kaiodelphino.margem.widgets.NoticeCard
+import com.kaiodelphino.margem.widgets.PageHeader
+import com.kaiodelphino.margem.widgets.SectionLine
+import com.kaiodelphino.margem.widgets.Snack
 import com.kaiodelphino.margem.widgets.SnackHost
+import com.kaiodelphino.margem.widgets.Text
+import com.kaiodelphino.margem.widgets.TopBar
 import com.kaiodelphino.margem.widgets.dateLong
+import com.kaiodelphino.margem.widgets.dateShort
+import com.kaiodelphino.margem.widgets.money
+import com.kaiodelphino.margem.widgets.moneyPlain
+import com.kaiodelphino.margem.widgets.monthShort
+import com.kaiodelphino.margem.widgets.sans
+import com.kaiodelphino.margem.widgets.serif
+import com.kaiodelphino.margem.widgets.time
+import kotlinx.coroutines.launch
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * Test tags of the Pauta and of Registrar estorno (D35): the contract of their UI tests. Same setup and
@@ -55,8 +121,8 @@ object InboxTags {
 
     /**
      * Prefix: NEW + notice id: present exactly while the card is shown as new (NoticeRow.isNew, spec
-     * §2.11 — the argila double rule). Notices stay new while the Pauta is open; leaving the Pauta marks
-     * everything posted up to when it was opened as seen (Db.markPautaSeen).
+     * §2.11 — the argila double rule). Notices stay new while the Pauta is open; everything posted up to
+     * when it was opened is no longer new on the next visit (Db.markPautaSeen, written on opening).
      */
     const val NEW = "inbox.new."
 
@@ -77,6 +143,9 @@ object InboxTags {
 
     /** The top bar: "Registrar estorno". */
     const val REFUND_TITLE = "refund.title"
+
+    /** The scrollable (lazy) list under the top bar, with everything below but the buttons. Plain container. */
+    const val REFUND_LIST = "refund.list"
 
     /** The estorno notice: "Cartão Ipê · qui, 8 out, 21:03" (source · dateShort · time) and the bank text in quotes. */
     const val REFUND_NOTICE = "refund.notice"
@@ -137,7 +206,88 @@ object InboxTags {
  * grouped by day, newest first, or "Pauta limpa.". Tags: [InboxTags].
  */
 @Composable
-fun Inbox(db: Db, granted: Boolean, snack: SnackHost, go: (Screen) -> Unit): Unit = TODO()
+fun Inbox(db: Db, granted: Boolean, snack: SnackHost, go: (Screen) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val pending = query(db) { it.pending() }
+    // Notices posted since the last visit stay "new" while the person is here: the visit is marked seen
+    // on opening (no write on leaving), and the new marks use the previous visit, kept across recreation.
+    val openedAt = rememberSaveable { Clock.System.now().toEpochMilliseconds() }
+    var seenBefore by rememberSaveable { mutableLongStateOf(-1L) }
+    LaunchedEffect(Unit) {
+        if (seenBefore < 0) seenBefore = db.settings().pautaSeenAt
+        db.markPautaSeen(openedAt)
+    }
+    val today = LocalToday.current()
+    val zone = TimeZone.currentSystemDefault()
+    Column {
+        TopBar("Pauta")
+        LazyColumn(
+            Modifier.testTag(InboxTags.LIST),
+            contentPadding = PaddingValues(start = Margem.space.page, end = Margem.space.page, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (!granted) item {
+                CapturePaused(
+                    { context.startActivity(accessSettingsIntent(context)) },
+                    Modifier.padding(top = 8.dp).testTag(InboxTags.PAUSED), onManual = { go(Screen.NewTransaction) },
+                )
+            }
+            if (pending == null || seenBefore < 0) return@LazyColumn
+            if (pending.isEmpty()) item {
+                EmptyState(
+                    R.drawable.i_pauta, "Pauta limpa.", "Nenhum recado esperando. Os próximos chegam sozinhos.",
+                    Modifier.testTag(InboxTags.EMPTY).semantics(mergeDescendants = true) {},
+                )
+            }
+            val byDay = pending.groupBy { Instant.fromEpochMilliseconds(it.raw.postedAt).toLocalDateTime(zone).date }
+            for ((day, notices) in byDay) {
+                item(key = "day-$day") { DayHeader(dayTitle(day, today), Modifier.testTag(InboxTags.DAY + day).semantics(mergeDescendants = true) {}) }
+                items(notices, key = { it.id.v }) { row ->
+                    val n = row.copy(isNew = row.raw.postedAt > seenBefore)
+                    NoticeCard(
+                        n, onAccept = { go(if (n.parsed.isRefund && !n.looksLikeAd) Screen.Refund(n.id) else Screen.Post(n.id)) },
+                        onDismiss = { scope.launch { riscar(db, n.id, snack) } },
+                        modifier = Modifier.testTag(InboxTags.CARD + n.id.v).semantics(mergeDescendants = true) {},
+                        acceptTag = InboxTags.ACCEPT + n.id.v, dismissTag = InboxTags.DISMISS + n.id.v, newTag = InboxTags.NEW + n.id.v,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Riscar with "Desfazer" (spec §2.3); false when the notice was no longer pending. */
+suspend fun riscar(db: Db, id: NoticeId, snack: SnackHost): Boolean {
+    if (!db.dismiss(id)) return false
+    snack.show(Snack("Recado riscado.", "Desfazer") { db.restore(id) })
+    return true
+}
+
+/** "Cartão Ipê · qui, 8 out, 21:03": source, day and time the notice arrived, in the device's zone. */
+fun noticeLine(n: NoticeRow): String {
+    val at = Instant.fromEpochMilliseconds(n.raw.postedAt).toLocalDateTime(TimeZone.currentSystemDefault())
+    return "${n.raw.appLabel} · ${dateShort(at.date)}, ${time(at.time)}"
+}
+
+/** Book `.quoteblk`: where the notice came from and its bank text, quoted — a citation, not data. */
+@Composable
+fun NoticeQuote(n: NoticeRow, modifier: Modifier = Modifier) {
+    val c = Margem.colors
+    Column(modifier.fillMaxWidth().background(c.surfaceSunken, RoundedCornerShape(6.dp)).padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Text(noticeLine(n), sans(12f, 600, 16f, 0.04f), color = c.inkTertiary)
+        Text("“${n.raw.body}”", serif(14, 400, 20, italic = true), Modifier.padding(top = 4.dp), c.inkSecondary)
+    }
+}
+
+/** A margin in a sentence: "R$ 34,00", or "R$ 12,00 além" when negative. */
+fun marginText(c: Cents) = if (c.v < 0) "${money(Cents(-c.v))} além" else money(c)
+
+private class RefundData(
+    val notice: NoticeRow, val candidates: List<RefundCandidate>,
+    val budgets: Map<Long, String>, val pending: Map<Long, NoticeRow>,
+)
+
+private fun RefundCandidate.key() = if (transaction.v != 0L) "t:${transaction.v}" else "n:${notice.v}"
 
 /**
  * Registrar estorno (book 10.4) for the pending estorno notice [estorno]: pick the cancelled purchase
@@ -145,7 +295,138 @@ fun Inbox(db: Db, granted: Boolean, snack: SnackHost, go: (Screen) -> Unit): Uni
  * to the Pauta. Tags: [InboxTags].
  */
 @Composable
-fun RefundScreen(db: Db, estorno: NoticeId, snack: SnackHost, replace: (Screen) -> Unit, back: () -> Unit): Unit = TODO()
+fun RefundScreen(db: Db, estorno: NoticeId, snack: SnackHost, replace: (Screen) -> Unit, back: () -> Unit) {
+    val c = Margem.colors
+    val scope = rememberCoroutineScope()
+    val today = LocalToday.current()
+    val data = query(db, estorno) {
+        RefundData(
+            it.notice(estorno), it.refundCandidates(estorno),
+            it.transactions().associate { t -> t.id.v to t.budgetName }, it.pending().associateBy { n -> n.id.v },
+        )
+    }
+    var search by rememberSaveable { mutableStateOf("") }
+    var picked by rememberSaveable { mutableStateOf("") }
+    var opened by rememberSaveable { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    LaunchedEffect(data) {
+        if (data == null || opened) return@LaunchedEffect
+        if (data.notice.id.v == 0L || data.notice.status != NoticeStatus.PENDING) {
+            snack.show(Snack(InboxTags.GONE_TEXT))
+            back()
+            return@LaunchedEffect
+        }
+        picked = data.candidates.firstOrNull()?.takeIf { it.likely }?.key() ?: ""
+        opened = true
+    }
+    val chosen = data?.candidates?.firstOrNull { it.key() == picked }
+    val preview = if (chosen != null && chosen.transaction.v != 0L) query(db, chosen.transaction, today) { it.previewRefund(chosen.transaction, today) } else null
+
+    fun submit() {
+        if (busy || chosen == null) return
+        busy = true
+        scope.launch {
+            val ok = if (chosen.transaction.v != 0L) db.registerRefund(estorno, chosen.transaction) else db.registerRefund(estorno, chosen.notice)
+            if (ok) snack.show(Snack("Estorno registrado: a compra de ${chosen.date.day} ${monthShort(chosen.date.month)} não conta mais.", "Desfazer") { db.undoRefund(estorno) })
+            else snack.show(Snack(InboxTags.GONE_TEXT))
+            back()
+        }
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        TopBar("Registrar estorno", Modifier.testTag(InboxTags.REFUND_TITLE).semantics(mergeDescendants = true) {}, onBack = back, close = true)
+        if (data == null || !opened) return@Column
+        val q = search.trim()
+        val shown = data.candidates.filter { q.isEmpty() || it.name.contains(q, ignoreCase = true) || moneyPlain(it.total).contains(q) }
+        LazyColumn(Modifier.weight(1f).testTag(InboxTags.REFUND_LIST), contentPadding = PaddingValues(start = Margem.space.page, end = Margem.space.page, bottom = 24.dp)) {
+            item { NoticeQuote(data.notice, Modifier.testTag(InboxTags.REFUND_NOTICE).semantics(mergeDescendants = true) {}) }
+            item {
+                PageHeader(
+                    "Estorno", "Qual compra foi estornada?", Modifier.padding(top = 16.dp),
+                    "Estorno é só um registro: não pede verba nem marcador. A compra escolhida deixa de contar.",
+                )
+            }
+            item {
+                Field(search, { search = it }, "Buscar", placeholder = "nome ou valor", tag = InboxTags.REFUND_SEARCH) {
+                    Icon(R.drawable.i_lupa, tint = c.inkTertiary, size = 20.dp)
+                }
+            }
+            if (shown.isEmpty()) item {
+                Text(
+                    if (data.candidates.isEmpty()) "Nenhuma compra para estornar." else "Nada encontrado.", Margem.type.body,
+                    Modifier.padding(top = 12.dp).testTag(InboxTags.REFUND_EMPTY), c.inkSecondary,
+                )
+            }
+            val likely = shown.firstOrNull()?.takeIf { it.likely && it == data.candidates.first() }
+            if (likely != null) {
+                item { SectionLine("Sugerida a mais provável", Modifier.testTag(InboxTags.REFUND_LIKELY).semantics(mergeDescendants = true) {}) }
+                item(key = likely.key()) { CandidateRow(likely, likely.key() == picked, data, today) { picked = likely.key() } }
+            }
+            val rest = if (likely == null) shown else shown.drop(1)
+            if (rest.isNotEmpty() && likely != null) item { SectionLine("Ou escolha outra") }
+            items(rest, key = { it.key() }) { cand -> CandidateRow(cand, cand.key() == picked, data, today) { picked = cand.key() } }
+            if (preview != null && chosen != null && preview.month != NO_MONTH) item {
+                val name = data.budgets[chosen.transaction.v].orEmpty()
+                Text(
+                    "$name: margem ${marginText(preview.before)} → ${marginText(preview.after)}", sans(15f, 500, 20f, tabular = true),
+                    Modifier.padding(top = 16.dp).testTag(InboxTags.REFUND_PREVIEW),
+                )
+            }
+            item {
+                Button(
+                    "Não é estorno? Lançar como compra", { replace(Screen.Post(estorno)) },
+                    Modifier.padding(top = 12.dp).testTag(InboxTags.REFUND_AS_PURCHASE), kind = ButtonKind.TEXT,
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = Margem.space.page, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button("Riscar", {
+                if (!busy) {
+                    busy = true
+                    scope.launch {
+                        if (!riscar(db, estorno, snack)) snack.show(Snack(InboxTags.GONE_TEXT))
+                        back()
+                    }
+                }
+            }, Modifier.weight(1f).testTag(InboxTags.REFUND_DISMISS), kind = ButtonKind.DISMISS, icon = R.drawable.i_riscar)
+            Button(
+                "Registrar estorno", ::submit, Modifier.weight(1.4f).testTag(InboxTags.REFUND_SUBMIT),
+                icon = R.drawable.i_estorno, enabled = chosen != null,
+            )
+        }
+    }
+}
+
+/** One purchase the estorno may cancel: name, where it is, its value; a radio mark when chosen. */
+@Composable
+private fun CandidateRow(cand: RefundCandidate, on: Boolean, data: RefundData, today: LocalDate, onClick: () -> Unit) {
+    val c = Margem.colors
+    val sub = if (cand.transaction.v != 0L) "${data.budgets[cand.transaction.v].orEmpty()} · ${dateShort(cand.date)} · lançamento"
+    else {
+        val n = data.pending[cand.notice.v]
+        val day = when (cand.date) {
+            today -> "hoje"
+            today.minus(DatePeriod(days = 1)) -> "ontem"
+            else -> dateShort(cand.date)
+        }
+        "$day, ${time(n?.parsed?.time ?: NO_TIME)} · recado na pauta"
+    }
+    val tag = if (cand.transaction.v != 0L) InboxTags.CANDIDATE_TX + cand.transaction.v else InboxTags.CANDIDATE_NOTICE + cand.notice.v
+    Row(
+        Modifier.fillMaxWidth().testTag(tag).semantics { selected = on }.clickable(role = Role.RadioButton, onClick = onClick)
+            .then(if (on) Modifier.background(c.surfaceSunken) else Modifier)
+            .drawBehind { drawLine(c.rule, Offset(0f, size.height - 0.5f), Offset(size.width, size.height - 0.5f), 1.dp.toPx()) }
+            .padding(vertical = 10.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Check(on)
+        Column(Modifier.weight(1f)) {
+            Text(cand.name, serif(17, 500, 22), maxLines = 1)
+            Text(sub, sans(13f, 400, 17f), Modifier.padding(top = 2.dp), c.inkTertiary, maxLines = 2)
+        }
+        Amount(cand.total, size = 17)
+    }
+}
 
 /** "Hoje · sexta, 9 de outubro", "Ontem · quinta, 8 de outubro", "Quarta, 7 de outubro". */
 fun dayTitle(day: LocalDate, today: LocalDate): String = when (day) {

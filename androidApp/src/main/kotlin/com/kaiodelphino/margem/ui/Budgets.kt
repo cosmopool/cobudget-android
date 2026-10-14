@@ -615,7 +615,7 @@ fun BudgetDetailScreen(db: Db, id: BudgetId, month: YearMonth, go: (Screen) -> U
             var cut = false
             for (line in d.lines) {
                 if (!line.row.refunded) sum += line.cents.v
-                MonthLineRow(line, sum, sum > bm.limit.v)
+                MonthLineRow(line, sum, sum > bm.limit.v) { go(Screen.Edit(line.row.id)) }
                 if (!cut && bm.limit.v > 0 && sum >= bm.limit.v) {
                     cut = true
                     CutLine()
@@ -649,7 +649,7 @@ private fun Headline(bm: BudgetMonth, today: LocalDate) {
 
 /** Book 10.8 `.lrow`: name, "qui, 1 · tags", the installment's value and the running sum. */
 @Composable
-private fun MonthLineRow(line: MonthLine, sum: Long, over: Boolean) {
+private fun MonthLineRow(line: MonthLine, sum: Long, over: Boolean, onClick: () -> Unit) {
     val c = Margem.colors
     val r = line.row
     val sub = buildList {
@@ -659,7 +659,7 @@ private fun MonthLineRow(line: MonthLine, sum: Long, over: Boolean) {
         if (r.refunded) add("estornada")
     }.joinToString(" · ")
     Row(
-        Modifier.fillMaxWidth().testTag(BudgetTags.LINE + r.id.v).semantics(mergeDescendants = true) {}
+        Modifier.fillMaxWidth().testTag(BudgetTags.LINE + r.id.v).clickable(onClick = onClick)
             .drawBehind { drawLine(c.rule, Offset(0f, size.height - 0.5f), Offset(size.width, size.height - 0.5f), 1.dp.toPx()) }
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),

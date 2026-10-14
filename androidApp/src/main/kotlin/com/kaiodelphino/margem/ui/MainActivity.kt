@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -196,7 +197,8 @@ fun App(db: Db, tabRequest: Screen?, onTabOpened: () -> Unit) {
         stack = listOf(tabRequest)
         onTabOpened()
     }
-    val snack = remember { SnackHost() }
+    val appScope = rememberCoroutineScope()
+    val snack = remember { SnackHost(appScope) }
     val pending = query(db) { it.pendingCount() } ?: 0
 
     val screen = stack.last()

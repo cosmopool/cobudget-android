@@ -263,6 +263,57 @@ class DbTest {
     }
 
     @Test
+    fun `previewRefund gives back the purchase's installment of its first month`() = runTest {
+        val budget = setUp()
+        val cash = db.addManual(TransactionForm(budget, listOf("casa"), Cents(5990), 1, "Loja", OCT_6, LocalTime(10, 0)))
+        val split = db.addManual(TransactionForm(budget, listOf("casa"), Cents(120000), 10, "Móveis", OCT_6, LocalTime(11, 0)))
+        // October: 600,00 − 59,90 − 120,00 = 420,10; refunding the cash one gives its 59,90 back, the split one its 1st installment.
+        assertEquals(Preview(YearMonth(2026, 10), Cents(42010), Cents(48000)), db.previewRefund(cash, NOV_20))
+        assertEquals(Preview(YearMonth(2026, 10), Cents(42010), Cents(54010)), db.previewRefund(split, OCT_6))
+
+        val estorno = post(nu(UBER_REFUND, T))
+        assertTrue(db.registerRefund(estorno, cash))
+        db.ensureMonths(YearMonth(2026, 10))
+        assertEquals(Cents(48000), db.budgetDetail(budget, YearMonth(2026, 10), OCT_6).month.remaining)
+        assertEquals(Preview(), db.previewRefund(cash, OCT_6))
+        assertEquals(Preview(), db.previewRefund(TransactionId(999), OCT_6))
+    }
+
+    @Test
+    fun `installments past 9999 are refused and a month crossing the edge still finds its own`() = runTest {
+        val budget = setUp()
+        val last = LocalDate(9999, 12, 31)
+        // Dates are ISO text: "+10000-01-31" would sort before "0001-01-01".
+        assertEquals(TransactionId(0), db.addManual(TransactionForm(budget, listOf("x"), Cents(200), 2, "Loja", last, LocalTime(10, 0))))
+        assertEquals(Preview(), db.previewAccept(budget, last, Cents(200), 2, OCT_6))
+        val tx = db.addManual(TransactionForm(budget, listOf("x"), Cents(200), 1, "Loja", last, LocalTime(10, 0)))
+        assertNotEquals(TransactionId(0), tx)
+        // With the month starting on the 15th, Dec 9999's month runs into year 10000.
+        assertTrue(db.setMonthStartDay(15, OCT_6))
+        assertEquals(Installment(1, last, Cents(200)), db.transactions(last).single().now)
+        assertEquals(Installment(), db.transactions(LocalDate(10000, 3, 1)).single().now)
+    }
+
+    @Test
+    fun `transactions of today carry the installment of today's month`() = runTest {
+        val budget = setUp()
+        val split = db.addManual(TransactionForm(budget, listOf("casa"), Cents(100001), 10, "Móveis", OCT_6, LocalTime(11, 0)))
+        val later = db.addManual(TransactionForm(budget, listOf("casa"), Cents(500), 1, "Depois", LocalDate(2026, 12, 2), LocalTime(9, 0)))
+
+        fun now(rows: List<TransactionRow>, id: TransactionId) = rows.single { it.id == id }.now
+        assertEquals(Installment(1, OCT_6, Cents(10000)), now(db.transactions(OCT_6), split))
+        assertEquals(Installment(2, LocalDate(2026, 11, 6), Cents(10000)), now(db.transactions(NOV_20), split))
+        assertEquals(Installment(10, LocalDate(2027, 7, 6), Cents(10001)), now(db.transactions(LocalDate(2027, 7, 31)), split))
+        assertEquals(Installment(), now(db.transactions(LocalDate(2027, 8, 1)), split))
+        assertEquals(Installment(), now(db.transactions(OCT_6), later))
+        assertEquals(Installment(), now(db.transactions(), split))
+        // With the month starting on the 10th, Oct 9 is in Sep 10–Oct 9 (installment 1, Oct 6) and Oct 12 in Oct 10–Nov 9 (installment 2, Nov 6).
+        assertTrue(db.setMonthStartDay(10, OCT_6))
+        assertEquals(Installment(1, OCT_6, Cents(10000)), now(db.transactions(LocalDate(2026, 10, 9)), split))
+        assertEquals(Installment(2, LocalDate(2026, 11, 6), Cents(10000)), now(db.transactions(LocalDate(2026, 10, 12)), split))
+    }
+
+    @Test
     fun `with a late month start day an installment lands inside its own month`() = runTest {
         val budget = setUp()
         assertTrue(db.setMonthStartDay(30, OCT_6))
