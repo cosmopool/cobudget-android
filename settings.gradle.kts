@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Cobudget"
-include(":app", ":shared")
+rootProject.name = "Margem"
+include(":shared", ":androidApp")

@@ -5,7 +5,7 @@
 /.idea/
 .DS_Store
 /build/
-/app/build/
+/androidApp/build/
 /captures/
 .externalNativeBuild/
 .cxx/
