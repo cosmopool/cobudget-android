@@ -486,6 +486,13 @@ class Db(
         }
     }
 
+    /**
+     * Whether [setLimit] with these arguments would delete step edits: some month from [today]'s on
+     * has edited steps summing more than [limit] (spec §4). Writes nothing; the screen asks before
+     * saving when true. False when [setLimit] would refuse (limit ≤ 0 or above the maximum, unknown budget).
+     */
+    suspend fun limitDropsEdits(id: BudgetId, limit: Cents, today: LocalDate): Boolean = TODO()
+
     /** Deletes the budget, its transactions (notices back to the Pauta), limits and step edits. */
     suspend fun deleteBudget(id: BudgetId): Unit = write { c ->
         deleteTransactions(c, "budget_id = ?", id.v)
@@ -504,8 +511,9 @@ class Db(
 
     /**
      * Edits the step of the week starting on [weekStart] (a Week.start of that month). Refused
-     * when the step is < 0 or > limit − Σ other edited weeks, or when it is the only week left
-     * not edited (one week always stays automatic). Editing an already edited week is allowed.
+     * when the step is < 0 or > [Week.max] (limit − Σ other edited weeks), or when the week is
+     * [Week.locked], the only one left not edited (one week always stays automatic). Editing an
+     * already edited week is allowed.
      */
     suspend fun setStep(budget: BudgetId, month: YearMonth, weekStart: LocalDate, step: Cents): Boolean = write { c ->
         val s = settings(c)
@@ -515,6 +523,21 @@ class Db(
         c.exec("INSERT OR REPLACE INTO week_steps(budget_id, week_start, cents) VALUES (?, ?, ?)", budget.v, weekStart.toString(), step.v)
         true
     }
+
+    /**
+     * Voltar ao automático: removes the step edit of the week starting on [weekStart] in [month]; the
+     * week goes back to sharing what the edits leave with the other automatic weeks (spec §4). False,
+     * with nothing changed, when that week of that month has no edit or the budget is unknown.
+     */
+    suspend fun clearStep(budget: BudgetId, month: YearMonth, weekStart: LocalDate): Boolean = TODO()
+
+    /**
+     * Nova verba's preview (book 10.7): the [BudgetMonth] that a budget created on [today] with [limit]
+     * would have in [today]'s month: default steps, ideal pace of today, nothing spent. Writes nothing.
+     * Equal to [budgetDetail]'s month of that budget right after [createBudget] with the same limit
+     * and day. Zero BudgetMonth when [createBudget] would refuse the limit (≤ 0 or above the maximum).
+     */
+    suspend fun previewBudget(limit: Cents, today: LocalDate): BudgetMonth = TODO()
 
     /** Budgets with a limit row in [month], with their [BudgetMonth], in [order]. */
     suspend fun budgetsOverview(month: YearMonth, today: LocalDate, order: BudgetOrder): List<BudgetSummary> = read { c ->
@@ -530,17 +553,11 @@ class Db(
         }
     }
 
-    /** One budget in [month] plus its transactions with an installment in it. Zero when unknown. */
-    suspend fun budgetDetail(id: BudgetId, month: YearMonth, today: LocalDate): BudgetDetail = read { c ->
-        val name = c.query("SELECT name FROM budgets WHERE id = ?", id.v) { it.getText(0) }.firstOrNull() ?: return@read BudgetDetail()
-        val bm = budgetMonth(c, settings(c), id.v, month, today)
-        val rows = transactionRows(
-            c,
-            "WHERE t.budget_id = ? AND EXISTS (SELECT 1 FROM installments i WHERE i.transaction_id = t.id AND i.date BETWEEN ? AND ?)",
-            id.v, bm.start.toString(), bm.end.toString(),
-        )
-        BudgetDetail(id, name, bm, rows)
-    }
+    /**
+     * One budget in [month]: its [BudgetMonth], the lines of the month ([BudgetDetail.lines]) and its
+     * first month. Zero when unknown.
+     */
+    suspend fun budgetDetail(id: BudgetId, month: YearMonth, today: LocalDate): BudgetDetail = TODO()
 
     // ---- Tags ----
 

@@ -1,6 +1,6 @@
 # Margem — arquitetura
 
-Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33; bloco 2 do `androidApp`, D1, D16, D23, D28, D33, §7). O que está em §11 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33; bloco 2 do `androidApp`, D1, D16, D23, D28, D33, §7; bloco 3, Verbas, D34–D35, §5–§7, §10). O que está em §11 espera resposta, uma por vez.
 Produto: [spec.md](spec.md). Vocabulário: [glossary.md](glossary.md). Visual: [design_system.html](design_system.html).
 Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o miolo, testes de integração.
 
@@ -40,6 +40,8 @@ Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o
 | D30 | **`ensureMonths(month)`** roda no escritor **sem incrementar `version`**: `INSERT OR IGNORE` copiando a cota anterior e preenchendo meses pulados. Telas e widgets chamam antes de consultar o mês. | Leitores são `query_only`. As linhas criadas só materializam a cota que já valia: nada na tela muda, e incrementar `version` faria a tela reconsultar em loop. |
 | D31 | **Datas com `kotlinx-datetime`** (`LocalDate`, `LocalTime`, `YearMonth`, `DayOfWeek`) no `shared` e no `androidApp`. Sem `java.time`. | `java.time` não existe no `commonMain`; um tipo de data só nos dois módulos. |
 | D32 | **`content_hash` = SHA-256 escrito à mão no `commonMain`** (sem `java.security`), sobre título, texto, texto longo, subtexto e linhas, cada um como tamanho em bytes (4 bytes) + UTF-8. | Sem dependência de criptografia para um hash de dedupe. O prefixo de tamanho evita colisão entre campos (com o byte 0 do cobudget, `"\0\0"+"É"` = `"\0"+"\0É"`). Não precisa ser igual ao do cobudget: a importação (D4) passa cada recado pelo `capture()`, que recalcula o hash. |
+| D34 | **Ordem dos blocos**: 1 `shared` · 2 fundação do `androidApp` · **3 Verbas** · 4 ciclo do recado (Pauta, lançar/editar, estorno, Lançamentos) · 5 Ajustes + importação · 6 Leitura · 7 widgets. | Lançar exige uma verba: as Verbas vêm antes do ciclo do recado. |
+| D35 | **Testes de UI acham elementos por `testTag`**: cada arquivo de tela tem um objeto de tags (`BudgetTags` em `ui/Budgets.kt`), uma `const val` por elemento que os testes tocam ou leem, com KDoc dizendo o que ele mostra. O objeto é parte do contrato do bloco. | A rodada de agentes escreve testes de UI antes das telas existirem; as tags fixas são a API pública da tela. Texto muda com o glossário; a tag não. |
 | D33 | **Encerrada no bloco 2**: `app/` (cobudget) ficou no build até o bloco do `androidApp` e foi removido no começo dele; o build é `:shared` + `:androidApp`. O que ainda serve de base (listener, `loadLauncherApps`, casos do `CaptureTest`) é lido do histórico (`git show 7616cd2:app/...`). | O cobudget não será mais usado. A importação do backup `.db` dele (D3, D4) continua e não depende do código de `app/`. |
 
 ## 2. Componentes
@@ -150,6 +152,9 @@ CREATE TABLE merchant_aliases(merchant_key TEXT PRIMARY KEY, alias TEXT NOT NULL
 - **Apagar verba**: apaga lançamentos, parcelas, ligações de marcador, cotas e passos dela; os recados voltam à Pauta.
 - **Apagar marcador**: apaga os lançamentos que ficam sem marcador (recados voltam à Pauta).
 - **Lançar**: exige verba e ≥1 marcador; grava lançamento + parcelas + marcadores numa transação; `corrected` quando difere da sugestão.
+- **Voltar ao automático** (`clearStep`): apaga a linha de `week_steps` da semana; a semana volta a dividir o que sobra com as outras automáticas.
+- **Semana travada** (`Week.locked`): a única semana não editada do mês; `setStep` a recusa. `Week.max` = cota − Σ outras editadas (0 na travada): é o que `setStep` aceita.
+- **Aviso de cota** (`limitDropsEdits`): mesma regra do `setLimit` (algum mês, do atual em diante, com Σ editadas > cota nova), sem gravar; a tela pergunta antes de chamar `setLimit`.
 - **Estado "novo" do recado**: `posted_at > settings.pauta_seen_at`; abrir a Pauta atualiza `pauta_seen_at`.
 
 ## 6. Cálculo do mês
@@ -181,7 +186,7 @@ class Week(val start: LocalDate, val end: LocalDate, val step: Cents, val edited
 enum class PaceStatus { ON_PACE, AHEAD, OVERRUN }
 ```
 
-Validação de edição de passo (parse na fronteira): aceita no máximo `limit − Σ outras editadas` e nunca a última semana não editada (spec: uma semana fica sempre automática).
+Validação de edição de passo (parse na fronteira): aceita no máximo `limit − Σ outras editadas` e nunca a única semana não editada (spec §4: uma semana fica sempre automática). `budgetMonth` já devolve isso em cada `Week` (`max`, `locked`), para a tela dizer o máximo antes de salvar.
 
 ## 7. UI (`androidApp`)
 
@@ -193,6 +198,8 @@ sealed interface Screen {
     data object Budgets : Screen; data object Inbox : Screen; data object Transactions : Screen
     data object Insights : Screen; data object Settings : Screen
     data class Budget(val id: BudgetId, val month: YearMonth) : Screen
+    data object NewBudget : Screen                        // Nova verba
+    data class EditBudget(val id: BudgetId) : Screen      // nome, cota, apagar
     data class Post(val notice: NoticeId) : Screen        // lançar um recado
     data class Edit(val id: TransactionId) : Screen       // editar lançamento
     data object NewTransaction : Screen                   // lançamento manual
@@ -224,7 +231,7 @@ Pacote Kotlin `com.kaiodelphino.margem` nos dois módulos. Namespace Android: `c
 
 | Arquivo | Conteúdo |
 |---|---|
-| `Db.kt` | Escritor + leitores (D29), schema, migrações, `write { }`, `read { }`, `version`, `onWrite`, `ensureMonths`, todas as consultas e escritas, exportar/importar (D14). |
+| `Db.kt` | Escritor + leitores (D29), schema, migrações, `write { }`, `read { }`, `version`, `onWrite`, `ensureMonths`, todas as consultas e escritas, exportar/importar (D14). Verbas (bloco 3): `createBudget`, `renameBudget`, `setLimit`, `limitDropsEdits`, `deleteBudget`, `reorderBudgets`, `setStep`, `clearStep`, `budgetsOverview`, `budgetDetail` (com `lines` e `firstMonth`), `previewBudget`. |
 | `Types.kt` | Value classes, `RawNotice`, `Parsed`, `PaceStatus`, ajustes e linhas de leitura. |
 | `Capture.kt` | `capture(db, raw)`, dedupe (usado também pela importação, D4), SHA-256 (D32). |
 | `Extract.kt` | Leitura de valor/estabelecimento/data (`internal`); `parseBrl` (público). |
@@ -258,7 +265,7 @@ Dependências:
 - **Extração** (`commonTest`): os casos atuais de `ExtractTest`/`CaptureTest`, portados para `RawNotice`.
 - **Android** (`androidApp`, Robolectric, `Db` com `AndroidSQLiteDriver`, D28): conversão `StatusBarNotification` → `RawNotice` → `capture` → `pending()`; UI Compose: fluxo de lançar (verba + marcador obrigatórios, parcelas, prévia) e editor de passos.
 - **Rodada de 4 agentes** sobre o contrato fechado (tipos + assinaturas com KDoc, corpos `TODO()`), em paralelo com a implementação, cada um num worktree e num arquivo: **borda** (`EdgeTest`), **fuzz** (`FuzzTest`, seed fixa e tempo limitado), **concorrência e ciclo de vida** (`ConcurrencyTest`), **invariantes** (`InvariantsTest`, sequências aleatórias de ações checando §5). Só veem spec, glossário, arquitetura e contrato. Cada falha é triada pela spec: bug no código → corrige o código; teste que leu a spec errado → corrige o teste, com o porquê. Teste nunca é afrouxado para passar.
-- **Rodada no `androidApp`**: o bloco 2 fica sem rodada (o contrato novo é só `rawNotice`; concorrência e invariantes do `Db` já estão no `shared`). A próxima é no bloco 3, sobre o contrato da Pauta e da tela de lançar, com Robolectric + Compose UI test: JVM pura não constrói `Notification`/`StatusBarNotification` (o `android.jar` só tem stubs) e o teste instrumentado não roda no worktree de um agente (D28).
+- **Rodada em todo bloco**: o bloco 2 ficou sem rodada (o contrato novo era só `rawNotice`). Do bloco 3 em diante, toda rodada cobre os acréscimos do `shared` **e a UI**: as telas entram no contrato como stubs `TODO()` com o objeto de tags (D35), e o teste de UI roda com Robolectric + Compose UI test e `AndroidSQLiteDriver` (D28); o teste instrumentado não roda no worktree de um agente. Os arquivos do bloco levam o prefixo dele (`BudgetsEdgeTest`, …).
 - O alvo `iosSimulatorArm64Test` existe, mas fica fora do loop da v1.
 
 ## 11. Em aberto

@@ -159,10 +159,10 @@ class EdgeTest {
         val jan = db.budgetDetail(id, ym(2026, 1), day(2026, 3, 31))
         assertEquals(Cents(1000), jan.month.spent)
         assertEquals(Cents(30000), jan.month.remaining)
-        assertEquals(listOf(lastOfJan), jan.transactions.map { it.id })
+        assertEquals(listOf(lastOfJan), jan.lines.map { it.row.id })
         val feb = db.budgetDetail(id, ym(2026, 2), day(2026, 3, 31))
         assertEquals(Cents(6000), feb.month.spent) // 20 + 40
-        assertTrue(firstOfFeb in feb.transactions.map { it.id })
+        assertTrue(firstOfFeb in feb.lines.map { it.row.id })
         assertEquals(Cents(8000), db.budgetDetail(id, ym(2026, 3), day(2026, 3, 31)).month.spent)
     }
 
@@ -793,8 +793,8 @@ class EdgeTest {
             YearMonth(2026 + (9 + i) / 12, (9 + i) % 12 + 1) to (50000L to if (i < 12) 10000L else 0L)
         }
         assertEquals(expected, history)
-        assertTrue(tx in db.budgetDetail(id, ym(2027, 9), day(2026, 10, 14)).transactions.map { it.id })
-        assertFalse(tx in db.budgetDetail(id, ym(2027, 10), day(2026, 10, 14)).transactions.map { it.id })
+        assertTrue(tx in db.budgetDetail(id, ym(2027, 9), day(2026, 10, 14)).lines.map { it.row.id })
+        assertFalse(tx in db.budgetDetail(id, ym(2027, 10), day(2026, 10, 14)).lines.map { it.row.id })
     }
 
     @Test

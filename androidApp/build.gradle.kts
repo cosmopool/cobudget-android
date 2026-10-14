@@ -55,10 +55,13 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    // Hosts createComposeRule's activity in the Robolectric UI tests (D35).
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.androidx.test.core)
     // Robolectric runs on the Mac JVM, where sqlite-bundled's Android AAR has no native lib (D28).
     testImplementation(libs.androidx.sqlite.framework)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
 }

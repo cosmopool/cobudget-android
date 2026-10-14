@@ -52,12 +52,14 @@ Uma **visualização** de quanto cabe por semana. Não é limite e não muda com
   Ex.: cota R$ 600, mês de 30 dias → semana cheia R$ 140,00; semana de 2 dias R$ 40,00.
 - **Editar**: a pessoa muda o passo de uma semana do mês (ex.: gastar menos no começo).
   As semanas **não editadas** se ajustam, proporcionalmente aos dias, para a soma dos passos continuar igual à cota.
-- **Uma semana fica sempre automática**: a última semana não editada não pode ser editada; ela absorve a diferença.
+- **Uma semana fica sempre automática**: quando só resta uma semana não editada, ela não pode ser editada (aparece em tinta 3, sem toque). Enquanto houver mais de uma, qualquer semana pode ser editada; a última não editada do mês absorve a diferença.
+- **Voltar ao automático**: numa semana editada, a pessoa pode desfazer a edição; ela volta a se ajustar com as outras.
 - **Limite da edição**: um passo aceita no máximo cota − outras semanas editadas; semana automática nunca fica abaixo de R$ 0,00. A mensagem diz o máximo possível.
 - **Centavos**: passos automáticos são arredondados para baixo; a última semana não editada recebe a diferença.
   Ex.: R$ 100,00 em 3 semanas iguais → 33,33 · 33,33 · 33,34.
 - Edições valem para aquele mês daquela verba. Mudar a cota redistribui só as semanas não editadas.
   Se a cota nova ficar abaixo da soma dos passos editados de um mês (do atual em diante), as edições daquele mês são apagadas e todas as semanas voltam ao automático.
+  O app **avisa antes** (Confirmar/Cancelar) quando a cota nova vai apagar edições; sem aviso quando nada é apagado.
 - **Mudar o dia de início da semana ou do mês** apaga as edições de passo do mês atual em diante; o app avisa antes. Meses passados são recalculados com o dia novo.
 
 ## 5. Ritmo
@@ -98,8 +100,8 @@ Cinco abas: **Verbas** (início) · **Pauta** · **Lançamentos** · **Leitura**
 ### 7.1 Verbas
 - Lista das verbas do mês atual: nome, régua (gasto, marca do ritmo ideal, cota), margem, estado.
 - **Ordenar**: seletor no topo — **risco** (padrão; mesma regra do widget, §8.1) · **manual** (arrastar) · **A–Z**. A escolha é lembrada.
-- Criar verba: nome + cota mensal.
-- **Detalhe da verba**: seletor de mês; régua; passos semanais (editáveis, §4); lançamentos do mês; editar nome e cota; apagar.
+- Criar verba: nome + cota mensal, com a prévia dos passos semanais do mês atual.
+- **Detalhe da verba**: seletor de mês (do primeiro mês da verba até o atual); régua; passos semanais (editáveis, com "Voltar ao automático", §4); lançamentos do mês com a soma corrida e a marca "cota atingida aqui" (parcelada conta a parcela do mês; estornada aparece riscada e não soma); editar nome e cota; apagar.
 - Vazio: explica o que é uma verba e como criar a primeira.
 
 ### 7.2 Pauta

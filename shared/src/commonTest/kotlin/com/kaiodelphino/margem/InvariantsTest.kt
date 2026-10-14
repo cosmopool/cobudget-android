@@ -840,7 +840,7 @@ private class InvariantRun(val db: Db, val seed: Int) {
             }
             assertEquals(status, bm.status, "$what: status (spent ${bm.spent.v}, ideal ${bm.ideal.v}, limit ${bm.limit.v})")
             val inMonth = txs.filter { t -> t.budget == id && details.getValue(t.id).installments.any { it.date in start..end } }
-            assertEquals(inMonth.map { it.id }.toSet(), d.transactions.map { it.id }.toSet(), "$what: detail transactions (refunded included)")
+            assertEquals(inMonth.map { it.id }.toSet(), d.lines.map { it.row.id }.toSet(), "$what: detail transactions (refunded included)")
             sumOfBudgets += bm.spent.v
         }
 

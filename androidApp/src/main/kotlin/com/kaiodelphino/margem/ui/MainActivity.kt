@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -69,6 +70,8 @@ sealed interface Screen {
     data object Insights : Screen
     data object Settings : Screen
     data class Budget(val id: BudgetId, val month: YearMonth) : Screen
+    data object NewBudget : Screen
+    data class EditBudget(val id: BudgetId) : Screen
     data class Post(val notice: NoticeId) : Screen
     data class Edit(val id: TransactionId) : Screen
     data object NewTransaction : Screen
@@ -83,6 +86,8 @@ private fun encode(s: Screen): String = when (s) {
     Screen.Insights -> "insights"
     Screen.Settings -> "settings"
     is Screen.Budget -> "budget:${s.id.v}:${s.month}"
+    Screen.NewBudget -> "newBudget"
+    is Screen.EditBudget -> "editBudget:${s.id.v}"
     is Screen.Post -> "post:${s.notice.v}"
     is Screen.Edit -> "edit:${s.id.v}"
     Screen.NewTransaction -> "new"
@@ -99,6 +104,8 @@ private fun decode(s: String): Screen {
         "insights" -> Screen.Insights
         "settings" -> Screen.Settings
         "budget" -> Screen.Budget(BudgetId(p[1].toLong()), YearMonth.parse(p[2]))
+        "newBudget" -> Screen.NewBudget
+        "editBudget" -> Screen.EditBudget(BudgetId(p[1].toLong()))
         "post" -> Screen.Post(NoticeId(p[1].toLong()))
         "edit" -> Screen.Edit(TransactionId(p[1].toLong()))
         "new" -> Screen.NewTransaction
@@ -118,7 +125,7 @@ private fun tabOf(s: Screen): Tab = when (s) {
     Screen.Transactions, is Screen.Edit, Screen.NewTransaction -> Tab.TRANSACTIONS
     Screen.Insights -> Tab.INSIGHTS
     Screen.Settings, Screen.Dismissed, Screen.Sources -> Tab.SETTINGS
-    Screen.Budgets, is Screen.Budget -> Tab.BUDGETS
+    Screen.Budgets, is Screen.Budget, Screen.NewBudget, is Screen.EditBudget -> Tab.BUDGETS
 }
 
 private fun screenOf(t: Tab): Screen = when (t) {
@@ -140,6 +147,9 @@ fun <T> query(db: Db, vararg keys: Any?, block: suspend (Db) -> T): T? {
 }
 
 fun today(): LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
+
+/** Today's date for the screens: the system clock; tests provide a fixed day (D35). */
+val LocalToday = staticCompositionLocalOf<() -> LocalDate> { ::today }
 
 class MainActivity : ComponentActivity() {
     private var tabRequest by mutableStateOf<Screen?>(null)
@@ -189,10 +199,12 @@ fun App(db: Db, tabRequest: Screen?, onTabOpened: () -> Unit) {
     val screen = stack.last()
     val go: (Screen) -> Unit = { stack = stack + it }
     val back: () -> Unit = { stack = if (stack.size > 1) stack.dropLast(1) else listOf(Screen.Budgets) }
+    val home: () -> Unit = { stack = listOf(Screen.Budgets) }
     // Back from another tab's root goes to Verbas; from Verbas it leaves the app.
     BackHandler(stack.size > 1 || screen != Screen.Budgets, back)
     // Forms (lançar, editar, novo) take the whole page; everything else keeps the tab bar.
-    val tabs = screen !is Screen.Post && screen !is Screen.Edit && screen != Screen.NewTransaction
+    val tabs = screen !is Screen.Post && screen !is Screen.Edit && screen != Screen.NewTransaction &&
+        screen != Screen.NewBudget && screen !is Screen.EditBudget
 
     Column(Modifier.fillMaxSize().background(Margem.colors.paper).windowInsetsPadding(WindowInsets.statusBars).imePadding()) {
         Box(Modifier.weight(1f)) {
@@ -203,8 +215,11 @@ fun App(db: Db, tabRequest: Screen?, onTabOpened: () -> Unit) {
                 Screen.Insights -> Insights(db)
                 Screen.Settings -> Settings(db, granted, go)
                 Screen.Sources -> Sources(db, back)
-                // Next blocks: 3 (Post, Dismissed), 4 (Budget, Edit, NewTransaction).
-                is Screen.Budget, is Screen.Post, is Screen.Edit, Screen.NewTransaction, Screen.Dismissed ->
+                is Screen.Budget -> BudgetDetailScreen(db, screen.id, screen.month, go, { stack = stack.dropLast(1) + Screen.Budget(screen.id, it) }, back)
+                Screen.NewBudget -> NewBudget(db, back)
+                is Screen.EditBudget -> EditBudget(db, screen.id, back, home)
+                // Next blocks: 4 (Post, Edit, NewTransaction), 5 (Dismissed).
+                is Screen.Post, is Screen.Edit, Screen.NewTransaction, Screen.Dismissed ->
                     TopBar("", onBack = back)
             }
             SnackbarHost(snack, Modifier.align(Alignment.BottomCenter))

@@ -178,6 +178,17 @@ data class Week(
     val step: Cents = Cents(0),
     val edited: Boolean = false,
     val spent: Cents = Cents(0),
+    /**
+     * The most [Db.setStep] accepts for this week: limit − Σ steps of the other edited weeks. Any
+     * value in 0..max is accepted, max + 1 is refused. Cents(0) when [locked].
+     */
+    val max: Cents = Cents(0),
+    /**
+     * The only week of the month not edited (spec §4: one week always stays automatic). [Db.setStep]
+     * refuses it with any value; the steps editor shows it in ink 3, without touch. With two or more
+     * weeks not edited, none is locked.
+     */
+    val locked: Boolean = false,
 )
 
 /** Everything the screens show about one budget in one month (architecture §6). */
@@ -199,12 +210,32 @@ data class BudgetMonth(
 
 data class BudgetSummary(val id: BudgetId = BudgetId(0), val name: String = "", val month: BudgetMonth = BudgetMonth())
 
+/** One line of the budget detail: a transaction and its installment dated in the month (book 10.8). */
+data class MonthLine(
+    val row: TransactionRow = TransactionRow(),
+    /** Which installment (1..row.installments) is dated in the month: "Parcela 3 de 10". 1 for à vista. */
+    val k: Int = 0,
+    /** That installment's date (the purchase date for à vista and for k = 1). */
+    val date: LocalDate = NO_DATE,
+    /** That installment's value: what the line adds to the running sum, unless row.refunded. */
+    val cents: Cents = Cents(0),
+)
+
 data class BudgetDetail(
     val id: BudgetId = BudgetId(0),
     val name: String = "",
     val month: BudgetMonth = BudgetMonth(),
-    /** Transactions with an installment in the month, newest first; refunded ones included. */
-    val transactions: List<TransactionRow> = emptyList(),
+    /**
+     * One line per transaction of this budget with an installment dated in the month, oldest first
+     * (installment date, then time, then id), for the running sum. Refunded ones are included and
+     * don't add: Σ cents of the lines not refunded = month.spent.
+     */
+    val lines: List<MonthLine> = emptyList(),
+    /**
+     * The budget's first month with a limit (the month it was created in, by the month start day of
+     * that time): the month picker goes from here to the current month. NO_MONTH when unknown.
+     */
+    val firstMonth: YearMonth = NO_MONTH,
 )
 
 /** "Mercado: margem R$ 300,00 → R$ 254,00", for the month of the first installment. */

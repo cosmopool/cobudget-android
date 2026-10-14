@@ -144,7 +144,7 @@ class ConcurrencyTest {
         assertTrue(both.isEmpty(), "notices both pending and launched: $both")
 
         val detail = db.budgetDetail(budget, MONTH, TODAY)
-        val counted = detail.transactions.filter { !it.refunded }.sumOf { it.total.v }
+        val counted = detail.lines.filter { !it.row.refunded }.sumOf { it.cents.v }
         assertEquals(counted, detail.month.spent.v, "budgetDetail torn: spent differs from its own transactions")
         assertEquals(detail.month.limit.v - detail.month.spent.v, detail.month.remaining.v)
 
