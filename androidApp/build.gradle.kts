@@ -1,8 +1,21 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
+
+// Release key: outside the repo, its path and passwords in local.properties (gitignored):
+// release.storeFile, release.storePassword, release.keyAlias, release.keyPassword.
+// Without all four, release builds come out unsigned and everything else still builds.
+val local = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use(::load)
+}
+val releaseKey = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+    .associateWith { local.getProperty("release.$it").orEmpty() }
+    .takeIf { it.values.all(String::isNotBlank) }
 
 android {
     namespace = "com.kaiodelphino.margem"
@@ -25,6 +38,12 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        if (releaseKey != null) create("release") {
+            storeFile = file(releaseKey.getValue("storeFile"))
+            storePassword = releaseKey.getValue("storePassword")
+            keyAlias = releaseKey.getValue("keyAlias")
+            keyPassword = releaseKey.getValue("keyPassword")
+        }
     }
 
     buildTypes {
@@ -32,6 +51,7 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
+            if (releaseKey != null) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
         }
