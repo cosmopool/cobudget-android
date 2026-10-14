@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- #marca from docs/design_system.html: translate(16.9 20.4) scale(1.4) on the 108 dp canvas. -->
+    <group android:translateX="16.9" android:translateY="20.4" android:scaleX="1.4" android:scaleY="1.4">
+        <path android:strokeColor="#FF000000" android:strokeWidth="1.8" android:pathData="M13,6v36M17.5,6v36"/>
+        <path android:strokeColor="#FF000000" android:strokeWidth="3.4" android:pathData="M22,15h18M22,24h14M22,33h7"/>
+        <path android:fillColor="#FF000000" android:pathData="M31.9,33a2.1,2.1 0 1,0 4.2,0a2.1,2.1 0 1,0 -4.2,0z"/>
+    </group>
+</vector>

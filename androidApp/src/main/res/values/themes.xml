@@ -1,0 +1,7 @@
+<resources>
+    <!-- Window only: everything inside is Compose (D15). Background = papel, so launch shows the page. -->
+    <style name="Theme.Margem" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/papel</item>
+    </style>
+    <color name="papel">#F3EEE4</color>
+</resources>

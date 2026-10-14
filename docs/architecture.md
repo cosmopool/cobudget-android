@@ -197,6 +197,7 @@ sealed interface Screen {
     data class Edit(val id: TransactionId) : Screen       // editar lançamento
     data object NewTransaction : Screen                   // lançamento manual
     data object Dismissed : Screen                        // Riscados
+    data object Sources : Screen                          // Ajustes › Fontes
 }
 ```
 
@@ -257,6 +258,7 @@ Dependências:
 - **Extração** (`commonTest`): os casos atuais de `ExtractTest`/`CaptureTest`, portados para `RawNotice`.
 - **Android** (`androidApp`, Robolectric, `Db` com `AndroidSQLiteDriver`, D28): conversão `StatusBarNotification` → `RawNotice` → `capture` → `pending()`; UI Compose: fluxo de lançar (verba + marcador obrigatórios, parcelas, prévia) e editor de passos.
 - **Rodada de 4 agentes** sobre o contrato fechado (tipos + assinaturas com KDoc, corpos `TODO()`), em paralelo com a implementação, cada um num worktree e num arquivo: **borda** (`EdgeTest`), **fuzz** (`FuzzTest`, seed fixa e tempo limitado), **concorrência e ciclo de vida** (`ConcurrencyTest`), **invariantes** (`InvariantsTest`, sequências aleatórias de ações checando §5). Só veem spec, glossário, arquitetura e contrato. Cada falha é triada pela spec: bug no código → corrige o código; teste que leu a spec errado → corrige o teste, com o porquê. Teste nunca é afrouxado para passar.
+- **Rodada no `androidApp`**: o bloco 2 fica sem rodada (o contrato novo é só `rawNotice`; concorrência e invariantes do `Db` já estão no `shared`). A próxima é no bloco 3, sobre o contrato da Pauta e da tela de lançar, com Robolectric + Compose UI test: JVM pura não constrói `Notification`/`StatusBarNotification` (o `android.jar` só tem stubs) e o teste instrumentado não roda no worktree de um agente (D28).
 - O alvo `iosSimulatorArm64Test` existe, mas fica fora do loop da v1.
 
 ## 11. Em aberto

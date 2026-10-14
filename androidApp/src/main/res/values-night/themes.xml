@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.Margem" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/papel</item>
+    </style>
+    <color name="papel">#171512</color>
+</resources>
