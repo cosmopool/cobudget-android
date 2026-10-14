@@ -94,6 +94,7 @@ import com.kaiodelphino.margem.Week
 import kotlinx.coroutines.delay
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.YearMonth
 import kotlinx.datetime.toLocalDateTime
@@ -394,15 +395,28 @@ fun MoneyField(
 }
 
 /** "‸ emendado · o recado dizia ~~R$ 32,90~~ · Desfazer" (book §8.2). */
+@Composable
+fun Emenda(original: Cents, onUndo: () -> Unit, tag: String = "") = Emenda(money(original), onUndo, tag)
+
+/**
+ * "‸ emendado · o recado dizia ~~[original]~~ · Desfazer": the value, the bank text or the date (book §8.2,
+ * §8.9). [tag]: the line ("$tag", merged) and "$tag.undo" on Desfazer (D35).
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun Emenda(original: Cents, onUndo: () -> Unit) {
+fun Emenda(original: String, onUndo: () -> Unit, tag: String = "") {
     val c = Margem.colors
-    FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center, itemVerticalAlignment = Alignment.CenterVertically) {
+    FlowRow(
+        Modifier.padding(top = 8.dp).then(if (tag.isEmpty()) Modifier else Modifier.testTag(tag).semantics(mergeDescendants = true) {}),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center, itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
         Text("‸ emendado", serif(14, 600, 18, italic = true), color = c.brand)
         Text("o recado dizia", sans(13.5f, 400, 18f), color = c.inkSecondary)
-        Text(money(original), sans(13.5f, 400, 18f, tabular = true), color = c.inkTertiary, decoration = TextDecoration.LineThrough)
-        Text("Desfazer", sans(13.5f, 600, 18f), Modifier.clickable(role = Role.Button, onClick = onUndo).padding(vertical = 4.dp), color = c.info)
+        Text(original, sans(13.5f, 400, 18f, tabular = true), color = c.inkTertiary, decoration = TextDecoration.LineThrough)
+        Text(
+            "Desfazer", sans(13.5f, 600, 18f),
+            Modifier.then(if (tag.isEmpty()) Modifier else Modifier.testTag("$tag.undo")).clickable(role = Role.Button, onClick = onUndo).padding(vertical = 4.dp), color = c.info,
+        )
     }
 }
 
@@ -941,6 +955,12 @@ fun DialogCard(
     }
 }
 
+/** Tags of the app-wide snackbar (D35): the text of the current snack, and its action ("Desfazer"). Absent when none is shown. */
+object SnackTags {
+    const val TEXT = "snack.text"
+    const val ACTION = "snack.action"
+}
+
 /** One snackbar: text and, when undoable, an action (book §8.8). */
 class Snack(val text: String, val action: String = "", val onAction: () -> Unit = {})
 
@@ -962,9 +982,9 @@ fun Snackbar(text: String, modifier: Modifier = Modifier, action: String = "", o
             .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(text, sans(15f, 400, 19.5f), Modifier.weight(1f).padding(vertical = 8.dp), c.paper, maxLines = 2)
+        Text(text, sans(15f, 400, 19.5f), Modifier.weight(1f).testTag(SnackTags.TEXT).padding(vertical = 8.dp), c.paper, maxLines = 2)
         if (action.isNotEmpty()) Box(
-            Modifier.heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onAction).padding(horizontal = 12.dp),
+            Modifier.heightIn(min = 48.dp).testTag(SnackTags.ACTION).clickable(role = Role.Button, onClick = onAction).padding(horizontal = 12.dp),
             contentAlignment = Alignment.Center,
         ) { Text(action, sans(15f, 700, 20f, 0.04f), color = c.snackAction) }
     }
@@ -989,6 +1009,62 @@ fun SnackbarHost(host: SnackHost, modifier: Modifier = Modifier) {
         }
     }
 }
+
+// ---- 8.9 Date and time ----
+
+/**
+ * Tags of [DateTimeDialog] (D35, D36). Book 8.9: the month grid with the week starting on
+ * Settings.weekStart, today in argila, future days disabled, the time typed like a value.
+ */
+object DateTimeTags {
+    /** The dialog. Back press or a touch outside closes it like [CANCEL]. */
+    const val DIALOG = "dateTime"
+
+    /** The chosen date: "quinta, 8 de outubro" (dateLong). Follows the day picked in the grid. */
+    const val TITLE = "dateTime.title"
+
+    /** The month shown: "outubro de 2026" (monthTitle). Opens on the chosen date's month. */
+    const val MONTH = "dateTime.month"
+
+    /** One month back (no limit) and one forward; forward is disabled on today's month. */
+    const val PREV = "dateTime.prev"
+    const val NEXT = "dateTime.next"
+
+    /** The weekday header: "seg", "ter", … (weekdayShort), seven texts starting on Settings.weekStart. */
+    const val WEEKDAYS = "dateTime.weekdays"
+
+    /**
+     * Prefix: DAY + date ("dateTime.day.2026-10-08"): every day of the month shown. Disabled after today;
+     * `selected` on the chosen date. Click chooses it.
+     */
+    const val DAY = "dateTime.day."
+
+    /**
+     * Hora input, starting with the chosen time. Digits fill from the right, like cents in a money input:
+     * "1430" = 14:30, "905" = 09:05; how it displays is not part of the contract.
+     */
+    const val TIME = "dateTime.time"
+
+    /** After [DONE] with an impossible time (hour > 23 or minute > 59): "A hora vai de 00:00 a 23:59." Absent otherwise. */
+    const val TIME_ERROR = "dateTime.time.error"
+
+    /** "Pronto": with a valid time, calls onDone(date, time) and closes; otherwise shows [TIME_ERROR] and stays. */
+    const val DONE = "dateTime.done"
+
+    /** "Cancelar": closes without calling onDone. */
+    const val CANCEL = "dateTime.cancel"
+}
+
+/**
+ * Book 8.9: date and time of a transaction. Opens on [date] and [time]; days after [today] can't be chosen.
+ * [weekStart] orders the grid (Settings.weekStart). [onDone] receives the choice; [onDismiss] closes it
+ * either way. Tags: [DateTimeTags].
+ */
+@Composable
+fun DateTimeDialog(
+    date: LocalDate, time: LocalTime, today: LocalDate, weekStart: DayOfWeek,
+    onDone: (LocalDate, LocalTime) -> Unit, onDismiss: () -> Unit,
+): Unit = TODO()
 
 /** Spacer shorthand for vertical rhythm. */
 @Composable

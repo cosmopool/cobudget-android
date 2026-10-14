@@ -263,7 +263,7 @@ object BudgetTags {
     /**
      * Prefix: LINE + transaction id, one per BudgetDetail.lines, oldest first. Name (alias, else bank
      * text); "qui, 1" (weekday and day of MonthLine.date) and the tags; "Parcela 3 de 10" when in
-     * installments; "estornada" when refunded; the installment's value (money). Not clickable in this block.
+     * installments; "estornada" when refunded; the installment's value (money). Click opens the edit form (TransactionTags).
      */
     const val LINE = "budget.line."
 

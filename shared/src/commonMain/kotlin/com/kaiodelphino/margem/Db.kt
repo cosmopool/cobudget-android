@@ -329,8 +329,11 @@ class Db(
      */
     suspend fun deleteTransaction(id: TransactionId): Unit = write { c -> deleteTransactions(c, "id = ?", id.v) }
 
-    /** All transactions, newest (date, time) first. */
-    suspend fun transactions(): List<TransactionRow> = read { c -> transactionRows(c, "") }
+    /**
+     * All transactions, newest (date, time, then id) first. With [today], each row's [TransactionRow.now]
+     * is its installment dated in today's budget month (zero when none is); without it, every `now` is zero.
+     */
+    suspend fun transactions(today: LocalDate = NO_DATE): List<TransactionRow> = TODO()
 
     /** Zero detail when unknown. */
     suspend fun transaction(id: TransactionId): TransactionDetail = read { c ->
@@ -393,6 +396,15 @@ class Db(
         c.exec("INSERT INTO refunds(estorno_notice_id, transaction_id, notice_id) VALUES (?, 0, ?)", estorno.v, purchase.v)
         true
     }
+
+    /**
+     * Registrar estorno's preview (book 10.4, "Casa: margem R$ 738,70 → R$ 798,60"): the margin of
+     * [purchase]'s budget in the budget month of its first installment (the purchase date), before and
+     * after registering the estorno — after = before + the installment dated in that month, which stops
+     * counting. Like [previewAccept], it doesn't need [today]'s month to be the purchase's. Writes nothing.
+     * Zero when the transaction is unknown or already refunded.
+     */
+    suspend fun previewRefund(purchase: TransactionId, today: LocalDate): Preview = TODO()
 
     /** Desfazer estorno: the purchase counts again; the estorno (and a purchase notice) are pending again. */
     suspend fun undoRefund(estorno: NoticeId): Boolean = write { c ->

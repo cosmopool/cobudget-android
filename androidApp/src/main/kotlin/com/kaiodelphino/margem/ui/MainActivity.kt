@@ -73,6 +73,7 @@ sealed interface Screen {
     data object NewBudget : Screen
     data class EditBudget(val id: BudgetId) : Screen
     data class Post(val notice: NoticeId) : Screen
+    data class Refund(val estorno: NoticeId) : Screen
     data class Edit(val id: TransactionId) : Screen
     data object NewTransaction : Screen
     data object Dismissed : Screen
@@ -89,6 +90,7 @@ private fun encode(s: Screen): String = when (s) {
     Screen.NewBudget -> "newBudget"
     is Screen.EditBudget -> "editBudget:${s.id.v}"
     is Screen.Post -> "post:${s.notice.v}"
+    is Screen.Refund -> "refund:${s.estorno.v}"
     is Screen.Edit -> "edit:${s.id.v}"
     Screen.NewTransaction -> "new"
     Screen.Dismissed -> "dismissed"
@@ -107,6 +109,7 @@ private fun decode(s: String): Screen {
         "newBudget" -> Screen.NewBudget
         "editBudget" -> Screen.EditBudget(BudgetId(p[1].toLong()))
         "post" -> Screen.Post(NoticeId(p[1].toLong()))
+        "refund" -> Screen.Refund(NoticeId(p[1].toLong()))
         "edit" -> Screen.Edit(TransactionId(p[1].toLong()))
         "new" -> Screen.NewTransaction
         "dismissed" -> Screen.Dismissed
@@ -121,7 +124,7 @@ private val StackSaver = Saver<List<Screen>, ArrayList<String>>(
 )
 
 private fun tabOf(s: Screen): Tab = when (s) {
-    Screen.Inbox, is Screen.Post -> Tab.INBOX
+    Screen.Inbox, is Screen.Post, is Screen.Refund -> Tab.INBOX
     Screen.Transactions, is Screen.Edit, Screen.NewTransaction -> Tab.TRANSACTIONS
     Screen.Insights -> Tab.INSIGHTS
     Screen.Settings, Screen.Dismissed, Screen.Sources -> Tab.SETTINGS
@@ -200,10 +203,11 @@ fun App(db: Db, tabRequest: Screen?, onTabOpened: () -> Unit) {
     val go: (Screen) -> Unit = { stack = stack + it }
     val back: () -> Unit = { stack = if (stack.size > 1) stack.dropLast(1) else listOf(Screen.Budgets) }
     val home: () -> Unit = { stack = listOf(Screen.Budgets) }
+    val replace: (Screen) -> Unit = { stack = stack.dropLast(1) + it }
     // Back from another tab's root goes to Verbas; from Verbas it leaves the app.
     BackHandler(stack.size > 1 || screen != Screen.Budgets, back)
     // Forms (lançar, editar, novo) take the whole page; everything else keeps the tab bar.
-    val tabs = screen !is Screen.Post && screen !is Screen.Edit && screen != Screen.NewTransaction &&
+    val tabs = screen !is Screen.Post && screen !is Screen.Refund && screen !is Screen.Edit && screen != Screen.NewTransaction &&
         screen != Screen.NewBudget && screen !is Screen.EditBudget
 
     Column(Modifier.fillMaxSize().background(Margem.colors.paper).windowInsetsPadding(WindowInsets.statusBars).imePadding()) {
@@ -211,16 +215,19 @@ fun App(db: Db, tabRequest: Screen?, onTabOpened: () -> Unit) {
             when (screen) {
                 Screen.Budgets -> Budgets(db, go)
                 Screen.Inbox -> Inbox(db, granted, snack, go)
-                Screen.Transactions -> Transactions(db, go)
+                Screen.Transactions -> Transactions(db, snack, go)
                 Screen.Insights -> Insights(db)
                 Screen.Settings -> Settings(db, granted, go)
                 Screen.Sources -> Sources(db, back)
                 is Screen.Budget -> BudgetDetailScreen(db, screen.id, screen.month, go, { stack = stack.dropLast(1) + Screen.Budget(screen.id, it) }, back)
                 Screen.NewBudget -> NewBudget(db, back)
                 is Screen.EditBudget -> EditBudget(db, screen.id, back, home)
-                // Next blocks: 4 (Post, Edit, NewTransaction), 5 (Dismissed).
-                is Screen.Post, is Screen.Edit, Screen.NewTransaction, Screen.Dismissed ->
-                    TopBar("", onBack = back)
+                is Screen.Post -> PostScreen(db, screen.notice, snack, go, replace, back)
+                is Screen.Refund -> RefundScreen(db, screen.estorno, snack, replace, back)
+                is Screen.Edit -> EditTransaction(db, screen.id, snack, go, back)
+                Screen.NewTransaction -> NewTransaction(db, snack, go, back)
+                // Block 5: Riscados.
+                Screen.Dismissed -> TopBar("", onBack = back)
             }
             SnackbarHost(snack, Modifier.align(Alignment.BottomCenter))
         }

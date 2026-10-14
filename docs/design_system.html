@@ -266,6 +266,21 @@ p.tx.serif{font:400 19px/1.6 'Newsreader'}
 .days{display:flex;gap:4px}
 .days span{width:38px;height:44px;display:grid;place-items:center;border:1px solid var(--fio);border-radius:3px;font:600 12px 'Source Sans 3';color:var(--tinta-2)}
 .days span.on{background:var(--tinta);color:var(--papel);border-color:var(--tinta)}
+.dtrow{display:grid;grid-template-columns:auto minmax(0,1fr);gap:24px 40px;align-items:start}
+@media (max-width:760px){.dtrow{grid-template-columns:minmax(0,1fr)}}
+.dlg.dtp{width:336px;max-width:100%;padding:22px 0 12px}
+.dtp>.over-r,.dtp>h4,.dtp>.fld,.dtp>.emh{padding:0 24px}
+.dtp>.pnav{padding:0 12px}
+.dtp>.act{padding:0 12px}
+.cal{display:grid;grid-template-columns:repeat(7,48px);justify-content:center}
+.cal .wd{height:28px;display:grid;place-items:center;font:600 10.5px 'Source Sans 3';letter-spacing:.06em;color:var(--tinta-3)}
+.cal .d{height:48px;display:grid;place-items:center}
+.cal .d span{width:40px;height:40px;display:grid;place-items:center;border-radius:3px;font:500 15px 'Newsreader';font-variant-numeric:lining-nums tabular-nums;color:var(--tinta)}
+.cal .d.fut span{color:var(--tinta-3);font-weight:400}
+.cal .d.hoje span{color:var(--argila);font-weight:600;box-shadow:inset 0 -2px 0 var(--argila)}
+.cal .d.on span{background:var(--tinta);color:var(--papel)}
+.cal .d.on.hoje span{box-shadow:inset 0 -3px 0 var(--argila)}
+.cal .d.foc span{outline:2px solid var(--anil);outline-offset:2px}
 
 .rec{background:var(--folha);border:1px solid var(--fio);border-radius:8px;padding:12px 14px 10px 16px;position:relative}
 .rec.novo{padding-left:24px}
@@ -1344,6 +1359,124 @@ p.tx.serif{font:400 19px/1.6 'Newsreader'}
         <div class="snack"><span class="t">Apelido salvo: “Padaria do Zé”.</span></div>
         <div class="snack"><span class="t">Estorno registrado: a compra de 2 out não conta mais.</span><span class="btn txt">Desfazer</span></div>
         <p class="cap">Diálogo só para o que não se desfaz, como apagar uma verba ou um marcador; o resto se resolve com “Desfazer”. Snackbar em tinta invertida, raio 6, até duas linhas, sem ícone.</p>
+      </div>
+    </div>
+
+    <h3 class="sub"><span class="k">8.9</span>Data e hora</h3>
+    <p class="intro">Data e hora de um lançamento se escolhem num diálogo de papel: a grade do mês, como o calendário de gastos (9.5), e a hora digitada como um valor. Lançamento é gasto feito: dia futuro não se escolhe.</p>
+    <div class="dtrow">
+        <div class="stage" style="background:var(--scrim);border:0;display:grid;place-items:center;padding:20px 16px">
+          <div class="dlg dtp">
+            <span class="over-r">Data e hora</span>
+            <h4 style="margin:4px 0 6px">quinta, 8 de outubro</h4>
+            <div class="pnav"><span class="ib"><svg class="ico"><use href="#i-voltar"/></svg></span><span class="lb">outubro de 2026</span><span class="ib dim" aria-disabled="true"><svg class="ico"><use href="#i-avancar"/></svg></span></div>
+            <div class="cal">
+            <div class="wd">SEG</div>
+            <div class="wd">TER</div>
+            <div class="wd">QUA</div>
+            <div class="wd">QUI</div>
+            <div class="wd">SEX</div>
+            <div class="wd">SÁB</div>
+            <div class="wd">DOM</div>
+            <div class="d"></div>
+            <div class="d"></div>
+            <div class="d"></div>
+            <div class="d"><span>1</span></div>
+            <div class="d"><span>2</span></div>
+            <div class="d"><span>3</span></div>
+            <div class="d"><span>4</span></div>
+            <div class="d"><span>5</span></div>
+            <div class="d"><span>6</span></div>
+            <div class="d"><span>7</span></div>
+            <div class="d on"><span>8</span></div>
+            <div class="d hoje"><span>9</span></div>
+            <div class="d fut" aria-disabled="true"><span>10</span></div>
+            <div class="d fut" aria-disabled="true"><span>11</span></div>
+            <div class="d fut" aria-disabled="true"><span>12</span></div>
+            <div class="d fut" aria-disabled="true"><span>13</span></div>
+            <div class="d fut" aria-disabled="true"><span>14</span></div>
+            <div class="d fut" aria-disabled="true"><span>15</span></div>
+            <div class="d fut" aria-disabled="true"><span>16</span></div>
+            <div class="d fut" aria-disabled="true"><span>17</span></div>
+            <div class="d fut" aria-disabled="true"><span>18</span></div>
+            <div class="d fut" aria-disabled="true"><span>19</span></div>
+            <div class="d fut" aria-disabled="true"><span>20</span></div>
+            <div class="d fut" aria-disabled="true"><span>21</span></div>
+            <div class="d fut" aria-disabled="true"><span>22</span></div>
+            <div class="d fut" aria-disabled="true"><span>23</span></div>
+            <div class="d fut" aria-disabled="true"><span>24</span></div>
+            <div class="d fut" aria-disabled="true"><span>25</span></div>
+            <div class="d fut" aria-disabled="true"><span>26</span></div>
+            <div class="d fut" aria-disabled="true"><span>27</span></div>
+            <div class="d fut" aria-disabled="true"><span>28</span></div>
+            <div class="d fut" aria-disabled="true"><span>29</span></div>
+            <div class="d fut" aria-disabled="true"><span>30</span></div>
+            <div class="d fut" aria-disabled="true"><span>31</span></div>
+            </div>
+            <div class="fld" style="margin-top:6px"><label>Hora</label><div class="in num">23:10</div></div>
+            <div class="act"><span class="btn txt">Cancelar</span><span class="btn txt">Pronto</span></div>
+          </div>
+        </div>
+      <div class="stack" style="gap:14px">
+        <p class="cap">Claro, no mês atual. Semana começando no dia escolhido em Ajustes (aqui, segunda). Hoje (9) em argila, com fio embaixo; o dia escolhido em tinta cheia; de 10 em diante, tinta 3 e sem toque. A seta de avançar fica em tinta 3 no mês atual: não há mês futuro. Para trás, sem limite. Quadrados de 40 dp num passo de 48 dp — o toque é de 48 —, por isso a grade vai de borda a borda do diálogo (336 dp).</p>
+        <div class="fld"><label>Data</label><div class="in">quinta, 8 de outubro · <span class="num">22:40</span><svg class="ico s20" style="margin-left:auto;color:var(--tinta-3)"><use href="#i-periodo"/></svg></div><div class="emenda"><span class="mk">‸ emendado</span>o recado dizia <s>qui, 8 out, 23:10</s><a href="#comp">Desfazer</a></div></div>
+        <p class="cap">No formulário de lançar (10.3), o campo Data mostra dia e hora e abre o diálogo ao toque. Diferente do recado, ganha a emenda, com o original riscado e Desfazer, como o valor.</p>
+      </div>
+    </div>
+    <div class="dtrow" style="margin-top:36px">
+        <div class="stage t-dark" style="background:var(--scrim);border:0;display:grid;place-items:center;padding:20px 16px">
+          <div class="dlg dtp">
+            <span class="over-r">Data e hora</span>
+            <h4 style="margin:4px 0 6px">sábado, 12 de setembro</h4>
+            <div class="pnav"><span class="ib"><svg class="ico"><use href="#i-voltar"/></svg></span><span class="lb">setembro de 2026</span><span class="ib"><svg class="ico"><use href="#i-avancar"/></svg></span></div>
+            <div class="cal">
+            <div class="wd">SEG</div>
+            <div class="wd">TER</div>
+            <div class="wd">QUA</div>
+            <div class="wd">QUI</div>
+            <div class="wd">SEX</div>
+            <div class="wd">SÁB</div>
+            <div class="wd">DOM</div>
+            <div class="d"></div>
+            <div class="d"><span>1</span></div>
+            <div class="d"><span>2</span></div>
+            <div class="d"><span>3</span></div>
+            <div class="d"><span>4</span></div>
+            <div class="d"><span>5</span></div>
+            <div class="d"><span>6</span></div>
+            <div class="d"><span>7</span></div>
+            <div class="d"><span>8</span></div>
+            <div class="d"><span>9</span></div>
+            <div class="d"><span>10</span></div>
+            <div class="d"><span>11</span></div>
+            <div class="d on foc"><span>12</span></div>
+            <div class="d"><span>13</span></div>
+            <div class="d"><span>14</span></div>
+            <div class="d"><span>15</span></div>
+            <div class="d"><span>16</span></div>
+            <div class="d"><span>17</span></div>
+            <div class="d"><span>18</span></div>
+            <div class="d"><span>19</span></div>
+            <div class="d"><span>20</span></div>
+            <div class="d"><span>21</span></div>
+            <div class="d"><span>22</span></div>
+            <div class="d"><span>23</span></div>
+            <div class="d"><span>24</span></div>
+            <div class="d"><span>25</span></div>
+            <div class="d"><span>26</span></div>
+            <div class="d"><span>27</span></div>
+            <div class="d"><span>28</span></div>
+            <div class="d"><span>29</span></div>
+            <div class="d"><span>30</span></div>
+            </div>
+            <div class="fld foc" style="margin-top:6px"><label>Hora</label><div class="in num">14:3<span class="caret"></span></div><div class="hint">Digite só os números: 1-4-3-0 = 14:30.</div></div>
+            <div class="act"><span class="btn txt">Cancelar</span><span class="btn txt">Pronto</span></div>
+          </div>
+        </div>
+      <div class="stack" style="gap:14px">
+        <p class="cap">Escuro, num mês passado: as duas setas valem. Foco do teclado no dia em anil, como nos botões. A hora se digita a partir da direita, como o valor a partir dos centavos: 1-4-3-0 = 14:30.</p>
+        <div class="fld err"><label>Hora</label><div class="in num">25:10</div><div class="hint"><svg class="ico s16"><use href="#i-aviso"/></svg>A hora vai de 00:00 a 23:59.</div></div>
+        <p class="cap">Hora impossível: a linha fica em lacre, a mensagem diz o intervalo e “Pronto” não fecha. “Cancelar”, voltar ou tocar fora fecham sem mudar nada.</p>
       </div>
     </div>
   </div>

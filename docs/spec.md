@@ -1,6 +1,6 @@
 # Margem — spec do produto
 
-Status: **decidido** em 2026-10-09. O que está em §10 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (bloco 4, ciclo do recado: §2.5, §2.8, §2.10, §7.3, §7.4). O que está em §10 espera resposta, uma por vez.
 Escopo: só produto (o quê e por quê). Implementação: [architecture.md](architecture.md).
 Vocabulário: [glossary.md](glossary.md). Identidade visual: [design_system.html](design_system.html).
 
@@ -20,13 +20,14 @@ O estorno não é crédito: é só o registro de que uma compra não conta (§6)
    - **Risca** — não é gasto (mensagem, propaganda, entrada).
 3. Riscar mostra **Desfazer** na hora; depois, o recado pode voltar à Pauta pela lista **Riscados** (em Ajustes).
 4. **Lançar exige exatamente uma verba e pelo menos um marcador.**
-5. **Sugestão:** se o estabelecimento já teve lançamento, verba e marcadores do último lançamento dele vêm pré-selecionados (marcadores tracejados até a pessoa confirmar). Sem histórico, nada vem marcado.
+5. **Sugestão:** se o estabelecimento já teve lançamento, verba e marcadores do último lançamento dele vêm pré-selecionados. Sem histórico, nada vem marcado.
+   Os marcadores sugeridos **já contam**: o tracejado só diz que vieram da sugestão. Tocar num tracejado confirma (fica cheio); tocar de novo tira. Lançar grava todos os marcados, tracejados ou não.
 6. Valor, estabelecimento e data vêm pré-preenchidos do texto do recado; a pessoa pode **emendar**.
 7. **Lançamento manual:** a pessoa cria um lançamento sem recado (dinheiro, Pix de outro celular), com os mesmos campos e as mesmas exigências.
-8. Apagar um lançamento devolve o recado dele à Pauta (o manual simplesmente some).
+8. Apagar um lançamento devolve o recado dele à Pauta (o manual simplesmente some). Pede confirmação num diálogo, que diz o que volta à Pauta; não tem Desfazer.
    Se ele estava estornado, o estorno é apagado junto: o recado de estorno também volta à Pauta.
 9. Apagar um marcador apaga os lançamentos que ficam sem nenhum marcador; os recados deles voltam à Pauta.
-10. **Apelido** do estabelecimento substitui o texto do banco em todo lugar.
+10. **Apelido** do estabelecimento substitui o texto do banco em todo lugar. Ao lançar, deixar o apelido em branco não o remove: ele fica como está.
 11. Recados que chegaram desde a última vez que a Pauta foi aberta aparecem como **novos**.
 
 ## 3. Verba e cota
@@ -114,12 +115,21 @@ Cinco abas: **Verbas** (início) · **Pauta** · **Lançamentos** · **Leitura**
 
 ### 7.3 Lançar / editar lançamento
 - Valor total, estabelecimento (com apelido), data e hora, verba (obrigatória), marcadores (≥1), número de parcelas.
+- **Estabelecimento em dois campos**: o principal é o **apelido** (vale para este e os próximos lançamentos do estabelecimento). Embaixo, "No banco: …"; tocar vira campo para **emendar o texto do banco** (marca emendado, com Desfazer). No lançamento manual há um campo só, o nome.
+- **Data e hora** por um seletor próprio (book 8.9): grade do mês com a semana começando no dia dos Ajustes, hoje marcado, dias futuros desabilitados (lançamento é gasto feito) e hora HH:MM.
 - Mostra o texto original do recado e marca o que foi emendado.
+- Enquanto falta verba ou marcador, o botão de lançar fica desabilitado e a tela diz o que falta.
 - **Prévia**: mostra o efeito na verba antes de confirmar ("Mercado: margem R$ 300,00 → R$ 254,00").
 - **Recado de estorno**: em vez dos campos, a pessoa escolhe a compra estornada (lançamento ou recado, §6); o app sugere a mais provável. O botão é **Registrar estorno**.
+  - A escolha é a lista completa de candidatos, os mais prováveis no topo, com **busca** (lupa) por nome, apelido ou valor.
+  - Prévia na verba quando a compra é um lançamento ("Casa: margem R$ 738,70 → R$ 798,60").
+- **Leitura errada**: a pessoa troca na própria tela. Em Registrar estorno, "Não é estorno? Lançar como compra"; no Lançar de um recado comum, "É um estorno? Registrar estorno".
+- **Na edição**: "Apagar lançamento" (§2.8); compra estornada mostra "estornada" e **Desfazer estorno**.
+- Se o recado deixou de estar na Pauta enquanto a tela estava aberta (lançado ou riscado por outro caminho), lançar é recusado: a tela avisa e volta.
 
 ### 7.4 Lançamentos
-- Todos os lançamentos, mais recentes no topo: estabelecimento, valor, verba, marcadores, data; compras estornadas riscadas como "estornada" (o estorno não tem linha própria) e parceladas marcadas.
+- Todos os lançamentos, mais recentes no topo, **agrupados por dia** como a Pauta: estabelecimento, valor, verba, marcadores; "‸ emendado" quando foi emendado; compras estornadas riscadas como "estornada" (o estorno não tem linha própria).
+- Parcelada mostra a parcela do mês atual ("Parcela 3 de 10", com o valor dela); sem parcela no mês atual, mostra o total e "10×".
 - Compra estornada: ação **Desfazer estorno** (§6).
 - Tocar abre a edição (7.3). Botão de **lançamento manual**.
 

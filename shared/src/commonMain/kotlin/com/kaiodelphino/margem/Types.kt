@@ -142,6 +142,13 @@ data class TransactionRow(
     val estorno: NoticeId = NoticeId(0),
     /** Differs from the notice's [Parsed] (glossary: emendado). Manual ones never are. */
     val corrected: Boolean = false,
+    /**
+     * The installment dated in the budget month of the `today` given to [Db.transactions] (by the
+     * current month start day): "Parcela 3 de 10 · R$ 120,00" in Lançamentos. Zero (k = 0) when none
+     * falls in that month (a purchase from a later month, or one whose installments ended) and in every
+     * other read. At most one installment falls in a month (D7). Refunded or not, it's the same.
+     */
+    val now: Installment = Installment(),
 ) {
     val name: String get() = alias.ifEmpty { merchant }
     val refunded: Boolean get() = estorno.v != 0L
