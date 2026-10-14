@@ -103,6 +103,41 @@ class BudgetsUiTest {
     }
 
     @Test
+    @Config(shadows = [ActiveKeyboard::class])
+    fun `a keyboard that composes the whole number loses no digit in the cota and the step`() {
+        open()
+        waitFor(BudgetTags.EMPTY)
+        compose.onNodeWithTag(BudgetTags.ADD).performClick()
+        waitFor(BudgetTags.FORM_NAME)
+        compose.onNodeWithTag(BudgetTags.FORM_NAME).performTextInput("Mercado")
+        compose.typeComposing(BudgetTags.FORM_LIMIT, "123456")
+        waitFor(BudgetTags.FORM_PREVIEW)
+        compose.onNodeWithTag(BudgetTags.FORM_SUBMIT).performClick()
+        compose.waitUntil(5_000) { runBlocking { db.budgetsOverview(OCT, OCT_9, BudgetOrder.RISK) }.isNotEmpty() }
+        val id = runBlocking { db.budgetsOverview(OCT, OCT_9, BudgetOrder.RISK) }.single().id
+        assertEquals(Cents(123456), runBlocking { db.budgetDetail(id, OCT, OCT_9) }.month.limit)
+
+        // Editar verba: the keyboard picks up the loaded cota as its word and goes on from it.
+        waitFor(BudgetTags.ROW + id.v)
+        compose.onNodeWithTag(BudgetTags.ROW + id.v).performClick()
+        waitFor(BudgetTags.DETAIL_EDIT)
+        compose.onNodeWithTag(BudgetTags.DETAIL_EDIT).performClick()
+        waitFor(BudgetTags.FORM_LIMIT)
+        compose.typeComposing(BudgetTags.FORM_LIMIT, "78")
+        compose.onNodeWithTag(BudgetTags.FORM_SUBMIT).performClick()
+        waitFor(BudgetTags.DETAIL_HEADLINE)
+        assertEquals(Cents(12345678), runBlocking { db.budgetDetail(id, OCT, OCT_9) }.month.limit)
+
+        compose.onNodeWithTag(BudgetTags.WEEK + "2026-10-05").performClick()
+        waitFor(BudgetTags.STEP_DIALOG)
+        compose.onNodeWithTag(BudgetTags.STEP_FIELD).performTextReplacement("")
+        compose.typeComposing(BudgetTags.STEP_FIELD, "250000")
+        compose.onNodeWithTag(BudgetTags.STEP_SAVE).performClick()
+        waitGone(BudgetTags.STEP_DIALOG)
+        assertEquals(Cents(250000), weeks(id)[1].step)
+    }
+
+    @Test
     fun `editing a step moves the others and the last automatic week stays locked`() {
         val id = runBlocking { db.createBudget("Mercado", Cents(60000), OCT_9) }
         open()

@@ -318,6 +318,31 @@ class RecadoUiTest {
         assertEquals(listOf(notice), runBlocking { db.pending() }.map { it.id })
     }
 
+    @Test
+    @Config(shadows = [ActiveKeyboard::class])
+    fun `a keyboard that composes the whole number loses no digit in the value and the hour`() {
+        val notice = post("Compra aprovada: R$ 40,50 em CANTINA NONA") // brings the tag "almoço"
+        runBlocking { db.notice(notice).parsed.let { db.accept(notice, TransactionForm(lazer, listOf("almoço"), it.cents, 1, it.merchant, it.date, it.time)) } }
+        open()
+        openTransactions()
+        click(TransactionTags.NEW)
+        waitFor(TransactionTags.FORM_NAME)
+        compose.onNodeWithTag(TransactionTags.FORM_NAME).performTextReplacement("Feira")
+        compose.typeComposing(TransactionTags.FORM_TOTAL, "123456")
+        click(TransactionTags.BUDGET + lazer.v)
+        click(TransactionTags.TAG + "almoço")
+        click(TransactionTags.FORM_DATE)
+        waitFor(DateTimeTags.DIALOG)
+        compose.onNodeWithTag(DateTimeTags.TIME).performTextReplacement("")
+        compose.typeComposing(DateTimeTags.TIME, "1430")
+        click(DateTimeTags.DONE)
+        waitGone(DateTimeTags.DIALOG)
+        click(TransactionTags.FORM_SUBMIT)
+        compose.waitUntil(5_000) { runBlocking { db.transactions() }.size == 2 }
+        val manual = runBlocking { db.transactions() }.first { it.notice.v == 0L }
+        assertEquals(Cents(123456) to LocalTime(14, 30), manual.total to manual.time)
+    }
+
     private companion object {
         const val BANK = "com.cartaoipe"
         val OCT_9 = LocalDate(2026, 10, 9)
