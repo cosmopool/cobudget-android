@@ -1,11 +1,31 @@
 package com.kaiodelphino.margem
 
+import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.SQLiteDriver
+import androidx.sqlite.SQLiteStatement
+import androidx.sqlite.execSQL
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.YearMonth
+import kotlinx.datetime.isoDayNumber
+import kotlinx.datetime.plusMonth
+import kotlinx.io.buffered
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
+
+private const val SCHEMA_VERSION = 1L
+private const val MAX_INSTALLMENTS = 400
 
 /**
  * The whole database (architecture D5, D6, D29): one writer connection under a Mutex, two
@@ -21,28 +41,138 @@ import kotlinx.datetime.YearMonth
  * @param timeZone used to read a notice's date and time when its text has none.
  */
 class Db(
-    driver: SQLiteDriver,
-    path: String,
-    onWrite: () -> Unit = {},
-    timeZone: TimeZone = TimeZone.currentSystemDefault(),
+    private val driver: SQLiteDriver,
+    private val path: String,
+    private val onWrite: () -> Unit = {},
+    private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
 ) {
-    /** Bumped once at the end of every write (except [ensureMonths]): screens re-query on change. */
-    val version: StateFlow<Long> get() = TODO()
+    private val writeLock = Mutex()
+    private lateinit var writer: SQLiteConnection
+    private val readers = Channel<SQLiteConnection>(READERS)
+    private val _version = MutableStateFlow(0L)
+
+    init {
+        open()
+    }
+
+    /** Bumped once at the end of every write that changed something (except [ensureMonths]): screens re-query on change. */
+    val version: StateFlow<Long> = _version.asStateFlow()
+
+    private fun open() {
+        writer = driver.open(path)
+        writer.execSQL("PRAGMA busy_timeout = 5000")
+        writer.execSQL("PRAGMA journal_mode = WAL")
+        migrate(writer)
+        repeat(READERS) {
+            val c = driver.open(path)
+            c.execSQL("PRAGMA busy_timeout = 5000")
+            c.execSQL("PRAGMA query_only = 1")
+            readers.trySend(c)
+        }
+    }
 
     /** Closes every connection. The Db can't be used afterwards. */
-    fun close(): Unit = TODO()
+    fun close() {
+        writer.close()
+        repeat(READERS) { readers.tryReceive().getOrNull()?.close() }
+    }
+
+    /**
+     * Runs [block] in one transaction on the writer. When it changed rows and [bump] is set,
+     * bumps [version] and calls onWrite (D6, D21). An exception rolls everything back.
+     */
+    internal suspend fun <T> write(bump: Boolean = true, block: (SQLiteConnection) -> T): T = withContext(Dispatchers.IO) {
+        var changed = false
+        val result = writeLock.withLock {
+            val before = writer.long("SELECT total_changes()")
+            writer.execSQL("BEGIN IMMEDIATE")
+            val r = try {
+                block(writer).also { writer.execSQL("COMMIT") }
+            } catch (e: Throwable) {
+                writer.execSQL("ROLLBACK")
+                throw e
+            }
+            changed = writer.long("SELECT total_changes()") != before
+            if (changed && bump) _version.value++
+            r
+        }
+        if (changed && bump) onWrite()
+        result
+    }
+
+    /** Runs [block] on a free reader, inside one read transaction: a consistent snapshot (D29). */
+    internal suspend fun <T> read(block: (SQLiteConnection) -> T): T = withContext(Dispatchers.IO) {
+        val c = readers.receive()
+        try {
+            c.execSQL("BEGIN")
+            try {
+                block(c)
+            } finally {
+                c.execSQL("COMMIT")
+            }
+        } finally {
+            readers.send(c)
+        }
+    }
 
     // ---- Backup (D14) ----
 
     /** Writes a consistent copy of the database to [path] (VACUUM INTO). False if it can't be written. */
-    suspend fun exportTo(path: String): Boolean = TODO()
+    suspend fun exportTo(path: String): Boolean = withContext(Dispatchers.IO) {
+        writeLock.withLock {
+            runCatching {
+                if (SystemFileSystem.exists(Path(path))) SystemFileSystem.delete(Path(path))
+                writer.exec("VACUUM INTO ?", path)
+            }.isSuccess
+        }
+    }
 
     /**
      * Replaces the database with the file at [path] (a copy made by [exportTo]): closes writer and
      * readers, swaps the file (dropping -wal/-shm), reopens, migrates and bumps [version].
      * False, with the current database untouched, if [path] isn't a Margem database.
      */
-    suspend fun importFrom(path: String): Boolean = TODO()
+    suspend fun importFrom(path: String): Boolean = withContext(Dispatchers.IO) {
+        if (!isMargemDb(path)) return@withContext false
+        // Copy first, next to the database: a failed copy leaves the current one untouched.
+        val incoming = Path("${this@Db.path}.import")
+        val copied = runCatching {
+            SystemFileSystem.source(Path(path)).buffered().use { src -> SystemFileSystem.sink(incoming).buffered().use { it.transferFrom(src) } }
+        }.isSuccess
+        if (!copied) {
+            runCatching { SystemFileSystem.delete(incoming, mustExist = false) }
+            return@withContext false
+        }
+        writeLock.withLock {
+            // Wait for in-flight reads to hand their connections back, then close everything.
+            val held = List(READERS) { readers.receive() }
+            held.forEach { it.close() }
+            writer.close()
+            for (suffix in listOf("", "-wal", "-shm", "-journal")) {
+                SystemFileSystem.delete(Path(this@Db.path + suffix), mustExist = false)
+            }
+            SystemFileSystem.atomicMove(incoming, Path(this@Db.path))
+            open()
+            _version.value++
+        }
+        onWrite()
+        true
+    }
+
+    /** Opens [path] on its own and checks it has our schema at a version we know. */
+    private fun isMargemDb(path: String): Boolean {
+        if (!SystemFileSystem.exists(Path(path))) return false
+        return runCatching {
+            val c = driver.open(path)
+            try {
+                val v = c.long("PRAGMA user_version")
+                val tables = c.long("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('notices', 'transactions', 'budgets')")
+                v in 1..SCHEMA_VERSION && tables == 3L
+            } finally {
+                c.close()
+            }
+        }.getOrDefault(false)
+    }
 
     // ---- Months (D30) ----
 
@@ -50,63 +180,108 @@ class Db(
      * Makes sure every budget has a limit row up to [month]: copies the latest earlier row and
      * fills skipped months. Months before a budget's first row stay without one. Does not bump [version].
      */
-    suspend fun ensureMonths(month: YearMonth): Unit = TODO()
+    suspend fun ensureMonths(month: YearMonth): Unit = write(bump = false) { c ->
+        for (id in c.query("SELECT id FROM budgets") { it.getLong(0) }) ensureMonth(c, id, month)
+    }
 
     /** The budget month [date] falls in, by the current monthStartDay. */
-    suspend fun monthOf(date: LocalDate): YearMonth = TODO()
+    suspend fun monthOf(date: LocalDate): YearMonth = read { c -> monthOf(date, settings(c).monthStartDay) }
 
     // ---- Settings and sources ----
 
-    suspend fun settings(): Settings = TODO()
+    suspend fun settings(): Settings = read(::settings)
 
     /**
      * Changes the month start day (1..31; false otherwise). Deletes the step edits from the start
      * of [today]'s month onward, by the old or the new day, whichever is earlier (spec §4, D10).
      */
-    suspend fun setMonthStartDay(day: Int, today: LocalDate): Boolean = TODO()
+    suspend fun setMonthStartDay(day: Int, today: LocalDate): Boolean {
+        if (day !in 1..31) return false
+        write { c ->
+            val old = settings(c).monthStartDay
+            if (old != day) {
+                val cut = minOf(monthWindow(monthOf(today, old), old).start, monthWindow(monthOf(today, day), day).start)
+                c.exec("DELETE FROM week_steps WHERE week_start >= ?", cut.toString())
+                setSetting(c, "month_start_day", day.toString())
+            }
+        }
+        return true
+    }
 
     /** Changes the week start day; deletes step edits like [setMonthStartDay]. */
-    suspend fun setWeekStart(day: DayOfWeek, today: LocalDate): Unit = TODO()
+    suspend fun setWeekStart(day: DayOfWeek, today: LocalDate): Unit = write { c ->
+        val s = settings(c)
+        if (s.weekStart != day) {
+            c.exec("DELETE FROM week_steps WHERE week_start >= ?", monthWindow(monthOf(today, s.monthStartDay), s.monthStartDay).start.toString())
+            setSetting(c, "week_start", day.isoDayNumber.toString())
+        }
+    }
 
-    suspend fun setTheme(theme: Theme): Unit = TODO()
+    suspend fun setTheme(theme: Theme): Unit = write { setSetting(it, "theme", theme.name) }
 
-    suspend fun setBudgetOrder(order: BudgetOrder): Unit = TODO()
+    suspend fun setBudgetOrder(order: BudgetOrder): Unit = write { setSetting(it, "budget_order", order.name) }
 
-    suspend fun setWidgetOrder(order: BudgetOrder): Unit = TODO()
+    suspend fun setWidgetOrder(order: BudgetOrder): Unit = write { setSetting(it, "widget_order", order.name) }
 
     /** Opening the Pauta: notices posted up to [now] stop being new. */
-    suspend fun markPautaSeen(now: Long): Unit = TODO()
+    suspend fun markPautaSeen(now: Long): Unit = write { setSetting(it, "pauta_seen_at", now.toString()) }
 
     /** Sorted by label, ignoring case. */
-    suspend fun sources(): List<Source> = TODO()
+    suspend fun sources(): List<Source> = read { c ->
+        c.query("SELECT package, label, added_at FROM sources ORDER BY label COLLATE NOCASE, package") {
+            Source(it.getText(0), it.getText(1), it.getLong(2))
+        }
+    }
 
     /** Adds or relabels a source. Blank package or label: refused (false). */
-    suspend fun addSource(packageName: String, label: String, now: Long): Boolean = TODO()
+    suspend fun addSource(packageName: String, label: String, now: Long): Boolean {
+        if (packageName.isBlank() || label.isBlank()) return false
+        write { c ->
+            c.exec(
+                "INSERT INTO sources(package, label, added_at) VALUES (?, ?, ?) ON CONFLICT(package) DO UPDATE SET label = excluded.label",
+                packageName, label, now,
+            )
+        }
+        return true
+    }
 
     /** Stops capturing from it; its notices stay. */
-    suspend fun removeSource(packageName: String): Unit = TODO()
+    suspend fun removeSource(packageName: String): Unit = write { it.exec("DELETE FROM sources WHERE package = ?", packageName) }
 
     // ---- Notices ----
 
     /** Pending notices, newest (posted_at) first. */
-    suspend fun pending(): List<NoticeRow> = TODO()
+    suspend fun pending(): List<NoticeRow> = read { c -> notices(c, "WHERE status = 0 ORDER BY posted_at DESC, id DESC") }
 
-    suspend fun pendingCount(): Int = TODO()
+    suspend fun pendingCount(): Int = read { c -> c.long("SELECT COUNT(*) FROM ($NOTICES) WHERE status = 0").toInt() }
 
     /** Riscados, newest first. */
-    suspend fun dismissed(): List<NoticeRow> = TODO()
+    suspend fun dismissed(): List<NoticeRow> = read { c -> notices(c, "WHERE status = 1 ORDER BY posted_at DESC, id DESC") }
 
     /** Zero row when unknown. */
-    suspend fun notice(id: NoticeId): NoticeRow = TODO()
+    suspend fun notice(id: NoticeId): NoticeRow = read { c -> notice(c, id.v) }
 
     /** Riscar: only a pending notice (false otherwise). */
-    suspend fun dismiss(id: NoticeId): Boolean = TODO()
+    suspend fun dismiss(id: NoticeId): Boolean = write { c ->
+        c.exec("UPDATE notices SET dismissed = 1 WHERE id = ? AND id IN (SELECT id FROM ($NOTICES) WHERE status = 0)", id.v)
+        c.changes() > 0
+    }
 
     /** Trazer de volta: a dismissed notice becomes pending (false if it wasn't dismissed). */
-    suspend fun restore(id: NoticeId): Boolean = TODO()
+    suspend fun restore(id: NoticeId): Boolean = write { c ->
+        c.exec("UPDATE notices SET dismissed = 0 WHERE id = ? AND dismissed = 1", id.v)
+        c.changes() > 0
+    }
 
     /** Budget and tags of the latest transaction whose merchant has the same key (spacing and case ignored). */
-    suspend fun suggestion(merchant: String): Suggestion = TODO()
+    suspend fun suggestion(merchant: String): Suggestion = read { c ->
+        val key = merchantKey(merchant)
+        if (key.isEmpty()) return@read Suggestion()
+        val last = c.query(
+            "SELECT id, budget_id FROM transactions WHERE merchant_key = ? ORDER BY date DESC, time DESC, id DESC LIMIT 1", key,
+        ) { it.getLong(0) to it.getLong(1) }.firstOrNull() ?: return@read Suggestion()
+        Suggestion(BudgetId(last.second), tagNames(c, last.first))
+    }
 
     // ---- Transactions ----
 
@@ -121,28 +296,44 @@ class Db(
      * down and the last absorbs the remainder. `corrected` when total, merchant, date or time
      * differ from the notice's [Parsed]. A non-blank alias names the merchant.
      */
-    suspend fun accept(notice: NoticeId, form: TransactionForm): TransactionId = TODO()
+    suspend fun accept(notice: NoticeId, form: TransactionForm): TransactionId = write { c ->
+        if (c.long("SELECT COUNT(*) FROM ($NOTICES) WHERE id = ? AND status = 0", notice.v) == 0L) return@write TransactionId(0)
+        TransactionId(saveTransaction(c, 0, notice.v, form))
+    }
 
     /** Lançamento manual: same rules as [accept], with no notice; never corrected. */
-    suspend fun addManual(form: TransactionForm): TransactionId = TODO()
+    suspend fun addManual(form: TransactionForm): TransactionId = write { c -> TransactionId(saveTransaction(c, 0, 0, form)) }
 
     /**
      * Replaces every field, installment and tag of a transaction; same rules as [accept]. corrected
      * is recomputed against the notice's [Parsed]. A registered estorno stays. False if refused or unknown.
      */
-    suspend fun edit(id: TransactionId, form: TransactionForm): Boolean = TODO()
+    suspend fun edit(id: TransactionId, form: TransactionForm): Boolean = write { c ->
+        val notice = c.query("SELECT notice_id FROM transactions WHERE id = ?", id.v) { it.getLong(0) }.firstOrNull()
+            ?: return@write false
+        saveTransaction(c, id.v, notice, form) != 0L
+    }
 
     /**
      * Deletes the transaction with its installments, tag links and the estorno registered on it:
      * its notice and that estorno notice become pending again (spec §2.8).
      */
-    suspend fun deleteTransaction(id: TransactionId): Unit = TODO()
+    suspend fun deleteTransaction(id: TransactionId): Unit = write { c -> deleteTransactions(c, "id = ?", id.v) }
 
     /** All transactions, newest (date, time) first. */
-    suspend fun transactions(): List<TransactionRow> = TODO()
+    suspend fun transactions(): List<TransactionRow> = read { c -> transactionRows(c, "") }
 
     /** Zero detail when unknown. */
-    suspend fun transaction(id: TransactionId): TransactionDetail = TODO()
+    suspend fun transaction(id: TransactionId): TransactionDetail = read { c ->
+        val row = transactionRows(c, "WHERE t.id = ?", id.v).firstOrNull() ?: return@read TransactionDetail()
+        TransactionDetail(
+            row = row,
+            installments = c.query("SELECT k, date, cents FROM installments WHERE transaction_id = ? ORDER BY k", id.v) {
+                Installment(it.getInt(0), LocalDate.parse(it.getText(1)), Cents(it.getLong(2)))
+            },
+            notice = if (row.notice.v == 0L) NoticeRow() else notice(c, row.notice.v),
+        )
+    }
 
     /**
      * Margin of [budget] in the month of [date] (the first installment's), before and after a
@@ -157,7 +348,18 @@ class Db(
         installments: Int,
         today: LocalDate,
         replacing: TransactionId = TransactionId(0),
-    ): Preview = TODO()
+    ): Preview = read { c ->
+        if (total.v !in 1..MAX_CENTS || installments !in 1..MAX_INSTALLMENTS) return@read Preview()
+        if (c.long("SELECT COUNT(*) FROM budgets WHERE id = ?", budget.v) == 0L) return@read Preview()
+        val s = settings(c)
+        val month = monthOf(date, s.monthStartDay)
+        val window = monthWindow(month, s.monthStartDay)
+        val limit = c.long("SELECT COALESCE(MAX(limit_cents), 0) FROM budget_months WHERE budget_id = ? AND month = ?", budget.v, month.toString())
+        val spent = spentIn(c, "t.budget_id = ?", budget.v, window.start, window.endInclusive)
+        val old = spentIn(c, "t.budget_id = ? AND t.id = ?", budget.v, window.start, window.endInclusive, replacing.v)
+        val before = limit - spent
+        Preview(month, Cents(before), Cents(before + old - total.v / installments))
+    }
 
     // ---- Estornos (spec §6) ----
 
@@ -165,23 +367,62 @@ class Db(
      * Registers [estorno] (a pending notice) as cancelling [purchase], a transaction not yet
      * refunded. Its installments stop counting, in every month. False otherwise.
      */
-    suspend fun registerRefund(estorno: NoticeId, purchase: TransactionId): Boolean = TODO()
+    suspend fun registerRefund(estorno: NoticeId, purchase: TransactionId): Boolean = write { c ->
+        if (!isPending(c, estorno.v)) return@write false
+        if (c.long("SELECT COUNT(*) FROM transactions WHERE id = ?", purchase.v) == 0L) return@write false
+        if (c.long("SELECT COUNT(*) FROM refunds WHERE transaction_id = ?", purchase.v) > 0L) return@write false
+        c.exec("INSERT INTO refunds(estorno_notice_id, transaction_id, notice_id) VALUES (?, ?, 0)", estorno.v, purchase.v)
+        true
+    }
 
     /**
      * Registers [estorno] as cancelling [purchase], another pending notice: both leave the Pauta
      * and nothing counts. False unless both are pending and different.
      */
-    suspend fun registerRefund(estorno: NoticeId, purchase: NoticeId): Boolean = TODO()
+    suspend fun registerRefund(estorno: NoticeId, purchase: NoticeId): Boolean = write { c ->
+        if (estorno == purchase || !isPending(c, estorno.v) || !isPending(c, purchase.v)) return@write false
+        c.exec("INSERT INTO refunds(estorno_notice_id, transaction_id, notice_id) VALUES (?, 0, ?)", estorno.v, purchase.v)
+        true
+    }
 
     /** Desfazer estorno: the purchase counts again; the estorno (and a purchase notice) are pending again. */
-    suspend fun undoRefund(estorno: NoticeId): Boolean = TODO()
+    suspend fun undoRefund(estorno: NoticeId): Boolean = write { c ->
+        c.exec("DELETE FROM refunds WHERE estorno_notice_id = ?", estorno.v)
+        c.changes() > 0
+    }
 
     /**
      * What [estorno] may cancel: transactions not refunded and pending notices (not the estorno
      * itself, nor notices parsed as estornos). Likely ones first, newest first within each group;
      * likely = same source, same value, same merchant key when the estorno names one, posted no later.
      */
-    suspend fun refundCandidates(estorno: NoticeId): List<RefundCandidate> = TODO()
+    suspend fun refundCandidates(estorno: NoticeId): List<RefundCandidate> = read { c ->
+        val e = notice(c, estorno.v)
+        if (e.id.v == 0L) return@read emptyList()
+        val key = merchantKey(e.parsed.merchant)
+        fun likely(pkg: String, cents: Long, merchant: String, postedAt: Long) =
+            e.parsed.cents.v > 0 && pkg == e.raw.packageName && cents == e.parsed.cents.v &&
+                (key.isEmpty() || merchantKey(merchant) == key) && postedAt <= e.raw.postedAt
+
+        class Ranked(val candidate: RefundCandidate, val time: LocalTime)
+        val ranked = ArrayList<Ranked>()
+        for (t in transactionRows(c, "WHERE NOT EXISTS (SELECT 1 FROM refunds r WHERE r.transaction_id = t.id)")) {
+            val n = if (t.notice.v == 0L) null else c.query("SELECT package, posted_at FROM notices WHERE id = ?", t.notice.v) {
+                it.getText(0) to it.getLong(1)
+            }.firstOrNull()
+            val isLikely = n != null && likely(n.first, t.total.v, t.merchant, n.second)
+            ranked.add(Ranked(RefundCandidate(transaction = t.id, name = t.name, total = t.total, date = t.date, likely = isLikely), t.time))
+        }
+        for (n in notices(c, "WHERE status = 0 AND id != ${estorno.v}")) {
+            if (n.parsed.isRefund) continue
+            val isLikely = likely(n.raw.packageName, n.parsed.cents.v, n.parsed.merchant, n.raw.postedAt)
+            val name = n.alias.ifEmpty { n.parsed.merchant }
+            ranked.add(Ranked(RefundCandidate(notice = n.id, name = name, total = n.parsed.cents, date = n.parsed.date, likely = isLikely), n.parsed.time))
+        }
+        ranked.sortedWith(
+            compareByDescending<Ranked> { it.candidate.likely }.thenByDescending { it.candidate.date }.thenByDescending { it.time }
+        ).map { it.candidate }
+    }
 
     // ---- Budgets ----
 
@@ -189,71 +430,479 @@ class Db(
      * New budget at the end of the manual order, with [limit] for [today]'s month. Refused
      * (BudgetId(0)) for a blank name, a name already used (ignoring case) or limit ≤ 0.
      */
-    suspend fun createBudget(name: String, limit: Cents, today: LocalDate): BudgetId = TODO()
+    suspend fun createBudget(name: String, limit: Cents, today: LocalDate): BudgetId {
+        val clean = name.trim()
+        if (clean.isEmpty() || limit.v !in 1..MAX_CENTS) return BudgetId(0)
+        return write { c ->
+            if (c.long("SELECT COUNT(*) FROM budgets WHERE name = ?", clean) > 0L) return@write BudgetId(0)
+            c.exec("INSERT INTO budgets(name, position) VALUES (?, (SELECT COALESCE(MAX(position), -1) + 1 FROM budgets))", clean)
+            val id = c.lastId()
+            c.exec(
+                "INSERT INTO budget_months(budget_id, month, limit_cents) VALUES (?, ?, ?)",
+                id, monthOf(today, settings(c).monthStartDay).toString(), limit.v,
+            )
+            BudgetId(id)
+        }
+    }
 
     /** False for a blank or already used name, or an unknown budget. */
-    suspend fun renameBudget(id: BudgetId, name: String): Boolean = TODO()
+    suspend fun renameBudget(id: BudgetId, name: String): Boolean {
+        val clean = name.trim()
+        if (clean.isEmpty()) return false
+        return write { c ->
+            if (c.long("SELECT COUNT(*) FROM budgets WHERE name = ? AND id != ?", clean, id.v) > 0L) return@write false
+            c.exec("UPDATE budgets SET name = ? WHERE id = ?", clean, id.v)
+            c.changes() > 0
+        }
+    }
 
     /**
      * Changes the limit from [today]'s month onward; earlier months keep theirs. In each of those
      * months where the edited steps now sum more than the new limit, all edits are deleted (spec §4).
      * False for limit ≤ 0 or an unknown budget.
      */
-    suspend fun setLimit(id: BudgetId, limit: Cents, today: LocalDate): Boolean = TODO()
+    suspend fun setLimit(id: BudgetId, limit: Cents, today: LocalDate): Boolean {
+        if (limit.v !in 1..MAX_CENTS) return false
+        return write { c ->
+            if (c.long("SELECT COUNT(*) FROM budgets WHERE id = ?", id.v) == 0L) return@write false
+            val day = settings(c).monthStartDay
+            val current = monthOf(today, day)
+            ensureMonth(c, id.v, current)
+            c.exec("INSERT OR IGNORE INTO budget_months(budget_id, month, limit_cents) VALUES (?, ?, ?)", id.v, current.toString(), limit.v)
+            c.exec("UPDATE budget_months SET limit_cents = ? WHERE budget_id = ? AND month >= ?", limit.v, id.v, current.toString())
+            val edits = c.query("SELECT week_start, cents FROM week_steps WHERE budget_id = ? AND week_start >= ?", id.v, monthWindow(current, day).start.toString()) {
+                LocalDate.parse(it.getText(0)) to it.getLong(1)
+            }
+            for ((month, inMonth) in edits.groupBy { monthOf(it.first, day) }) {
+                if (inMonth.sumOf { it.second } <= limit.v) continue
+                val w = monthWindow(month, day)
+                c.exec("DELETE FROM week_steps WHERE budget_id = ? AND week_start BETWEEN ? AND ?", id.v, w.start.toString(), w.endInclusive.toString())
+            }
+            true
+        }
+    }
 
     /** Deletes the budget, its transactions (notices back to the Pauta), limits and step edits. */
-    suspend fun deleteBudget(id: BudgetId): Unit = TODO()
+    suspend fun deleteBudget(id: BudgetId): Unit = write { c ->
+        deleteTransactions(c, "budget_id = ?", id.v)
+        c.exec("DELETE FROM budget_months WHERE budget_id = ?", id.v)
+        c.exec("DELETE FROM week_steps WHERE budget_id = ?", id.v)
+        c.exec("DELETE FROM budgets WHERE id = ?", id.v)
+    }
 
     /** Manual order: [ids] must be exactly the existing budgets, in the new order. False otherwise. */
-    suspend fun reorderBudgets(ids: List<BudgetId>): Boolean = TODO()
+    suspend fun reorderBudgets(ids: List<BudgetId>): Boolean = write { c ->
+        val existing = c.query("SELECT id FROM budgets") { it.getLong(0) }.toSet()
+        if (ids.size != existing.size || ids.map { it.v }.toSet() != existing) return@write false
+        ids.forEachIndexed { i, id -> c.exec("UPDATE budgets SET position = ? WHERE id = ?", i, id.v) }
+        true
+    }
 
     /**
      * Edits the step of the week starting on [weekStart] (a Week.start of that month). Refused
      * when the step is < 0 or > limit − Σ other edited weeks, or when it is the only week left
      * not edited (one week always stays automatic). Editing an already edited week is allowed.
      */
-    suspend fun setStep(budget: BudgetId, month: YearMonth, weekStart: LocalDate, step: Cents): Boolean = TODO()
+    suspend fun setStep(budget: BudgetId, month: YearMonth, weekStart: LocalDate, step: Cents): Boolean = write { c ->
+        val s = settings(c)
+        if (c.long("SELECT COUNT(*) FROM budget_months WHERE budget_id = ? AND month = ?", budget.v, month.toString()) == 0L) return@write false
+        val bm = budgetMonth(c, s, budget.v, month, weekStart)
+        if (step.v < 0 || step > maxStep(bm, weekStart)) return@write false
+        c.exec("INSERT OR REPLACE INTO week_steps(budget_id, week_start, cents) VALUES (?, ?, ?)", budget.v, weekStart.toString(), step.v)
+        true
+    }
 
     /** Budgets with a limit row in [month], with their [BudgetMonth], in [order]. */
-    suspend fun budgetsOverview(month: YearMonth, today: LocalDate, order: BudgetOrder): List<BudgetSummary> = TODO()
+    suspend fun budgetsOverview(month: YearMonth, today: LocalDate, order: BudgetOrder): List<BudgetSummary> = read { c ->
+        val s = settings(c)
+        val list = c.query(
+            "SELECT b.id, b.name FROM budgets b JOIN budget_months m ON m.budget_id = b.id AND m.month = ? ORDER BY b.position, b.id",
+            month.toString(),
+        ) { it.getLong(0) to it.getText(1) }.map { (id, name) -> BudgetSummary(BudgetId(id), name, budgetMonth(c, s, id, month, today)) }
+        when (order) {
+            BudgetOrder.RISK -> riskOrder(list)
+            BudgetOrder.MANUAL -> list
+            BudgetOrder.AZ -> list.sortedBy { it.name.lowercase() }
+        }
+    }
 
     /** One budget in [month] plus its transactions with an installment in it. Zero when unknown. */
-    suspend fun budgetDetail(id: BudgetId, month: YearMonth, today: LocalDate): BudgetDetail = TODO()
+    suspend fun budgetDetail(id: BudgetId, month: YearMonth, today: LocalDate): BudgetDetail = read { c ->
+        val name = c.query("SELECT name FROM budgets WHERE id = ?", id.v) { it.getText(0) }.firstOrNull() ?: return@read BudgetDetail()
+        val bm = budgetMonth(c, settings(c), id.v, month, today)
+        val rows = transactionRows(
+            c,
+            "WHERE t.budget_id = ? AND EXISTS (SELECT 1 FROM installments i WHERE i.transaction_id = t.id AND i.date BETWEEN ? AND ?)",
+            id.v, bm.start.toString(), bm.end.toString(),
+        )
+        BudgetDetail(id, name, bm, rows)
+    }
 
     // ---- Tags ----
 
     /** With use counts, sorted by name. */
-    suspend fun tags(): List<TagRow> = TODO()
+    suspend fun tags(): List<TagRow> = read { c ->
+        c.query(
+            "SELECT g.id, g.name, " +
+                "(SELECT COUNT(*) FROM transaction_tags l WHERE l.tag_id = g.id), " +
+                "(SELECT COUNT(*) FROM transaction_tags l WHERE l.tag_id = g.id " +
+                "AND (SELECT COUNT(*) FROM transaction_tags o WHERE o.transaction_id = l.transaction_id) = 1) " +
+                "FROM tags g ORDER BY g.name",
+        ) { TagRow(TagId(it.getLong(0)), it.getText(1), it.getInt(2), it.getInt(3)) }
+    }
 
     /** Trimmed and lowercased; returns the existing tag for a used name. TagId(0) for a blank one. */
-    suspend fun createTag(name: String): TagId = TODO()
+    suspend fun createTag(name: String): TagId {
+        val clean = name.trim().lowercase()
+        if (clean.isEmpty()) return TagId(0)
+        return write { c -> TagId(tagId(c, clean)) }
+    }
 
     /** Trimmed and lowercased. False for a blank name, a name of another tag, or an unknown tag. */
-    suspend fun renameTag(id: TagId, name: String): Boolean = TODO()
+    suspend fun renameTag(id: TagId, name: String): Boolean {
+        val clean = name.trim().lowercase()
+        if (clean.isEmpty()) return false
+        return write { c ->
+            if (c.long("SELECT COUNT(*) FROM tags WHERE name = ? AND id != ?", clean, id.v) > 0L) return@write false
+            c.exec("UPDATE tags SET name = ? WHERE id = ?", clean, id.v)
+            c.changes() > 0
+        }
+    }
 
     /** Moves every link of [from] to [into] and deletes [from]. False if either is unknown or they are the same. */
-    suspend fun mergeTags(from: TagId, into: TagId): Boolean = TODO()
+    suspend fun mergeTags(from: TagId, into: TagId): Boolean = write { c ->
+        if (from == into || c.long("SELECT COUNT(*) FROM tags WHERE id IN (?, ?)", from.v, into.v) != 2L) return@write false
+        c.exec("INSERT OR IGNORE INTO transaction_tags(transaction_id, tag_id) SELECT transaction_id, ? FROM transaction_tags WHERE tag_id = ?", into.v, from.v)
+        c.exec("DELETE FROM transaction_tags WHERE tag_id = ?", from.v)
+        c.exec("DELETE FROM tags WHERE id = ?", from.v)
+        true
+    }
 
     /** Deletes the tag; transactions left without tags are deleted and their notices go back to the Pauta. */
-    suspend fun deleteTag(id: TagId): Unit = TODO()
+    suspend fun deleteTag(id: TagId): Unit = write { c ->
+        c.exec("DELETE FROM transaction_tags WHERE tag_id = ?", id.v)
+        c.exec("DELETE FROM tags WHERE id = ?", id.v)
+        deleteTransactions(c, "id NOT IN (SELECT transaction_id FROM transaction_tags)")
+    }
 
     // ---- Aliases ----
 
     /** Names the merchant (key: spacing and case ignored) everywhere; a blank alias removes it. Blank merchant: ignored. */
-    suspend fun setAlias(merchant: String, alias: String): Unit = TODO()
+    suspend fun setAlias(merchant: String, alias: String) {
+        val key = merchantKey(merchant)
+        if (key.isEmpty()) return
+        write { c -> saveAlias(c, key, alias) }
+    }
 
     // ---- Leitura (spec §7.5) ----
     // Refunded transactions never count. Installments count on their own date.
 
     /** Spent × limit for every budget and month in [from]..[to] that has a limit row. */
-    suspend fun history(from: YearMonth, to: YearMonth): List<HistoryRow> = TODO()
+    suspend fun history(from: YearMonth, to: YearMonth): List<HistoryRow> = read { c ->
+        val day = settings(c).monthStartDay
+        c.query(
+            "SELECT b.id, b.name, m.month, m.limit_cents FROM budget_months m JOIN budgets b ON b.id = m.budget_id " +
+                "WHERE m.month BETWEEN ? AND ? ORDER BY b.position, b.id, m.month",
+            from.toString(), to.toString(),
+        ) { HistoryRow(BudgetId(it.getLong(0)), it.getText(1), YearMonth.parse(it.getText(2)), Cents(it.getLong(3))) }
+            .map {
+                val w = monthWindow(it.month, day)
+                it.copy(spent = Cents(spentIn(c, "t.budget_id = ?", it.budget.v, w.start, w.endInclusive)))
+            }
+    }
 
     /** Tags by value of installments dated in [from]..[to]; count = transactions with one there. */
-    suspend fun tagRanking(from: LocalDate, to: LocalDate): List<RankRow> = TODO()
+    suspend fun tagRanking(from: LocalDate, to: LocalDate): List<RankRow> = read { c ->
+        c.query(
+            "SELECT g.name, SUM(i.cents), COUNT(DISTINCT t.id) FROM installments i JOIN transactions t ON t.id = i.transaction_id " +
+                "JOIN transaction_tags l ON l.transaction_id = t.id JOIN tags g ON g.id = l.tag_id " +
+                "WHERE i.date BETWEEN ? AND ? AND $NOT_REFUNDED GROUP BY g.id ORDER BY 2 DESC, g.name",
+            from.toString(), to.toString(),
+        ) { RankRow(it.getText(0), Cents(it.getLong(1)), it.getInt(2)) }
+    }
 
     /** Same, by merchant (grouped by key, named by alias). */
-    suspend fun merchantRanking(from: LocalDate, to: LocalDate): List<RankRow> = TODO()
+    suspend fun merchantRanking(from: LocalDate, to: LocalDate): List<RankRow> = read { c ->
+        c.query(
+            "SELECT COALESCE(a.alias, MAX(t.merchant)), SUM(i.cents), COUNT(DISTINCT t.id) FROM installments i " +
+                "JOIN transactions t ON t.id = i.transaction_id LEFT JOIN merchant_aliases a ON a.merchant_key = t.merchant_key " +
+                "WHERE i.date BETWEEN ? AND ? AND $NOT_REFUNDED GROUP BY t.merchant_key ORDER BY 2 DESC, 1",
+            from.toString(), to.toString(),
+        ) { RankRow(it.getText(0), Cents(it.getLong(1)), it.getInt(2)) }
+    }
 
     /** Spent per day in [from]..[to]; days without spending are absent. */
-    suspend fun spentByDay(from: LocalDate, to: LocalDate): Map<LocalDate, Cents> = TODO()
+    suspend fun spentByDay(from: LocalDate, to: LocalDate): Map<LocalDate, Cents> = read { c ->
+        c.query(
+            "SELECT i.date, SUM(i.cents) FROM installments i JOIN transactions t ON t.id = i.transaction_id " +
+                "WHERE i.date BETWEEN ? AND ? AND $NOT_REFUNDED GROUP BY i.date ORDER BY i.date",
+            from.toString(), to.toString(),
+        ) { LocalDate.parse(it.getText(0)) to Cents(it.getLong(1)) }.toMap()
+    }
+
+    // ---- Private: shared by reads and writes ----
+
+    private fun settings(c: SQLiteConnection): Settings {
+        val m = c.query("SELECT key, value FROM settings") { it.getText(0) to it.getText(1) }.toMap()
+        val d = Settings()
+        return Settings(
+            monthStartDay = m["month_start_day"]?.toIntOrNull() ?: d.monthStartDay,
+            weekStart = m["week_start"]?.toIntOrNull()?.let { DayOfWeek(it) } ?: d.weekStart,
+            theme = m["theme"]?.let { v -> Theme.entries.firstOrNull { it.name == v } } ?: d.theme,
+            budgetOrder = m["budget_order"]?.let { v -> BudgetOrder.entries.firstOrNull { it.name == v } } ?: d.budgetOrder,
+            widgetOrder = m["widget_order"]?.let { v -> BudgetOrder.entries.firstOrNull { it.name == v } } ?: d.widgetOrder,
+            pautaSeenAt = m["pauta_seen_at"]?.toLongOrNull() ?: d.pautaSeenAt,
+        )
+    }
+
+    private fun setSetting(c: SQLiteConnection, key: String, value: String) =
+        c.exec("INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)", key, value)
+
+    /** Copies the latest limit row before [month] into every month up to it (D8, D30). */
+    private fun ensureMonth(c: SQLiteConnection, budget: Long, month: YearMonth) {
+        val last = c.query(
+            "SELECT month, limit_cents FROM budget_months WHERE budget_id = ? AND month <= ? ORDER BY month DESC LIMIT 1",
+            budget, month.toString(),
+        ) { YearMonth.parse(it.getText(0)) to it.getLong(1) }.firstOrNull() ?: return
+        var m = last.first
+        while (m < month) {
+            m = m.plusMonth()
+            c.exec("INSERT OR IGNORE INTO budget_months(budget_id, month, limit_cents) VALUES (?, ?, ?)", budget, m.toString(), last.second)
+        }
+    }
+
+    private fun budgetMonth(c: SQLiteConnection, s: Settings, budget: Long, month: YearMonth, today: LocalDate): BudgetMonth {
+        val w = monthWindow(month, s.monthStartDay)
+        val limit = c.long("SELECT COALESCE(MAX(limit_cents), 0) FROM budget_months WHERE budget_id = ? AND month = ?", budget, month.toString())
+        val edits = c.query(
+            "SELECT week_start, cents FROM week_steps WHERE budget_id = ? AND week_start BETWEEN ? AND ?",
+            budget, w.start.toString(), w.endInclusive.toString(),
+        ) { LocalDate.parse(it.getText(0)) to Cents(it.getLong(1)) }.toMap()
+        val spent = c.query(
+            "SELECT i.date, SUM(i.cents) FROM installments i JOIN transactions t ON t.id = i.transaction_id " +
+                "WHERE t.budget_id = ? AND i.date BETWEEN ? AND ? AND $NOT_REFUNDED GROUP BY i.date",
+            budget, w.start.toString(), w.endInclusive.toString(),
+        ) { LocalDate.parse(it.getText(0)) to Cents(it.getLong(1)) }.toMap()
+        return budgetMonth(month, s.monthStartDay, s.weekStart, today, Cents(limit), edits, spent)
+    }
+
+    /** Σ installments in [from]..[to] of the non-refunded transactions matching [where] (over `t`). */
+    private fun spentIn(c: SQLiteConnection, where: String, budget: Long, from: LocalDate, to: LocalDate, vararg more: Any): Long =
+        c.long(
+            "SELECT COALESCE(SUM(i.cents), 0) FROM installments i JOIN transactions t ON t.id = i.transaction_id " +
+                "WHERE $where AND i.date BETWEEN ? AND ? AND $NOT_REFUNDED",
+            budget, *more, from.toString(), to.toString(),
+        )
+
+    private fun isPending(c: SQLiteConnection, id: Long) = c.long("SELECT COUNT(*) FROM ($NOTICES) WHERE id = ? AND status = 0", id) > 0L
+
+    private fun notice(c: SQLiteConnection, id: Long): NoticeRow = notices(c, "WHERE id = $id").firstOrNull() ?: NoticeRow()
+
+    /** [NOTICES] rows filtered by [tail], parsed, with alias and new/ad flags. */
+    private fun notices(c: SQLiteConnection, tail: String): List<NoticeRow> {
+        val seen = settings(c).pautaSeenAt
+        val aliases = aliases(c)
+        return c.query("SELECT * FROM ($NOTICES) $tail") {
+            val raw = RawNotice(
+                packageName = it.getText(1), appLabel = it.getText(2), key = it.getText(3), postedAt = it.getLong(4), whenMs = it.getLong(5),
+                title = it.getText(6), text = it.getText(7), bigText = it.getText(8), subText = it.getText(9), textLines = it.getText(10),
+                category = it.getText(11), channelId = it.getText(12), extrasJson = it.getText(13),
+            )
+            val parsed = extract(raw, timeZone)
+            NoticeRow(
+                id = NoticeId(it.getLong(0)),
+                raw = raw,
+                parsed = parsed,
+                alias = aliases[merchantKey(parsed.merchant)] ?: "",
+                status = NoticeStatus.entries[it.getInt(14)],
+                isNew = raw.postedAt > seen,
+                looksLikeAd = parsed.cents.v == 0L && parsed.merchant.isEmpty(),
+            )
+        }
+    }
+
+    private fun aliases(c: SQLiteConnection) = c.query("SELECT merchant_key, alias FROM merchant_aliases") { it.getText(0) to it.getText(1) }.toMap()
+
+    private fun tagNames(c: SQLiteConnection, transaction: Long) =
+        c.query("SELECT g.name FROM transaction_tags l JOIN tags g ON g.id = l.tag_id WHERE l.transaction_id = ? ORDER BY g.name", transaction) { it.getText(0) }
+
+    /** Transactions matching [where] (over `t`), newest first, with budget, alias, tags and estorno. */
+    private fun transactionRows(c: SQLiteConnection, where: String, vararg args: Any): List<TransactionRow> {
+        val rows = c.query(
+            "SELECT t.id, t.notice_id, t.budget_id, b.name, t.merchant, COALESCE(a.alias, ''), t.total_cents, " +
+                "(SELECT COUNT(*) FROM installments i WHERE i.transaction_id = t.id), t.date, t.time, " +
+                "COALESCE((SELECT r.estorno_notice_id FROM refunds r WHERE r.transaction_id = t.id), 0), t.corrected " +
+                "FROM transactions t JOIN budgets b ON b.id = t.budget_id LEFT JOIN merchant_aliases a ON a.merchant_key = t.merchant_key " +
+                "$where ORDER BY t.date DESC, t.time DESC, t.id DESC",
+            *args,
+        ) {
+            TransactionRow(
+                id = TransactionId(it.getLong(0)), notice = NoticeId(it.getLong(1)), budget = BudgetId(it.getLong(2)), budgetName = it.getText(3),
+                merchant = it.getText(4), alias = it.getText(5), total = Cents(it.getLong(6)), installments = it.getInt(7),
+                date = LocalDate.parse(it.getText(8)), time = LocalTime.parse(it.getText(9)), estorno = NoticeId(it.getLong(10)),
+                corrected = it.getLong(11) != 0L,
+            )
+        }
+        if (rows.isEmpty()) return rows
+        val tags = HashMap<Long, MutableList<String>>()
+        c.query("SELECT l.transaction_id, g.name FROM transaction_tags l JOIN tags g ON g.id = l.tag_id ORDER BY g.name") {
+            tags.getOrPut(it.getLong(0)) { ArrayList() }.add(it.getText(1))
+        }
+        return rows.map { it.copy(tags = tags[it.id.v] ?: emptyList()) }
+    }
+
+    /**
+     * Parses [form] and writes the transaction [id] (0 = new) of [notice] (0 = manual) with its
+     * installments and tags. Returns its id, or 0 with nothing written when the form is refused.
+     */
+    private fun saveTransaction(c: SQLiteConnection, id: Long, notice: Long, form: TransactionForm): Long {
+        val tags = form.tags.map { it.trim().lowercase() }.filter(String::isNotEmpty).distinct()
+        if (tags.isEmpty() || form.total.v !in 1..MAX_CENTS || form.installments !in 1..MAX_INSTALLMENTS) return 0
+        if (c.long("SELECT COUNT(*) FROM budgets WHERE id = ?", form.budget.v) == 0L) return 0
+        val merchant = form.merchant.trim()
+        val corrected = notice != 0L && extract(notice(c, notice).raw, timeZone).let {
+            it.cents != form.total || it.merchant != merchant || it.date != form.date || it.time != form.time
+        }
+        val key = merchantKey(merchant)
+        val txId = if (id == 0L) {
+            c.exec(
+                "INSERT INTO transactions(notice_id, budget_id, merchant, merchant_key, date, time, total_cents, corrected) VALUES (?,?,?,?,?,?,?,?)",
+                notice, form.budget.v, merchant, key, form.date.toString(), form.time.toString(), form.total.v, corrected,
+            )
+            c.lastId()
+        } else {
+            c.exec(
+                "UPDATE transactions SET budget_id = ?, merchant = ?, merchant_key = ?, date = ?, time = ?, total_cents = ?, corrected = ? WHERE id = ?",
+                form.budget.v, merchant, key, form.date.toString(), form.time.toString(), form.total.v, corrected, id,
+            )
+            c.exec("DELETE FROM installments WHERE transaction_id = ?", id)
+            c.exec("DELETE FROM transaction_tags WHERE transaction_id = ?", id)
+            id
+        }
+        val n = form.installments
+        val each = form.total.v / n
+        val day = settings(c).monthStartDay
+        for (k in 1..n) {
+            val cents = if (k == n) form.total.v - each * (n - 1) else each
+            c.exec("INSERT INTO installments(transaction_id, k, date, cents) VALUES (?, ?, ?, ?)", txId, k, installmentDate(form.date, k, day).toString(), cents)
+        }
+        for (name in tags) c.exec("INSERT OR IGNORE INTO transaction_tags(transaction_id, tag_id) VALUES (?, ?)", txId, tagId(c, name))
+        if (form.alias.isNotBlank() && key.isNotEmpty()) saveAlias(c, key, form.alias)
+        return txId
+    }
+
+    /** The tag named [name] (already clean), created if new. */
+    private fun tagId(c: SQLiteConnection, name: String): Long {
+        c.query("SELECT id FROM tags WHERE name = ?", name) { it.getLong(0) }.firstOrNull()?.let { return it }
+        c.exec("INSERT INTO tags(name) VALUES (?)", name)
+        return c.lastId()
+    }
+
+    private fun saveAlias(c: SQLiteConnection, key: String, alias: String) {
+        if (alias.isBlank()) c.exec("DELETE FROM merchant_aliases WHERE merchant_key = ?", key)
+        else c.exec("INSERT OR REPLACE INTO merchant_aliases(merchant_key, alias) VALUES (?, ?)", key, alias.trim())
+    }
+
+    /** Deletes the transactions matching [where] with their installments, tag links and estornos (spec §2.8). */
+    private fun deleteTransactions(c: SQLiteConnection, where: String, vararg args: Any) {
+        val ids = "SELECT id FROM transactions WHERE $where"
+        c.exec("DELETE FROM installments WHERE transaction_id IN ($ids)", *args)
+        c.exec("DELETE FROM transaction_tags WHERE transaction_id IN ($ids)", *args)
+        c.exec("DELETE FROM refunds WHERE transaction_id IN ($ids)", *args)
+        c.exec("DELETE FROM transactions WHERE $where", *args)
+    }
+
+    private companion object {
+        const val READERS = 2
+
+        /** Every notice with its derived status: 0 pending, 1 dismissed, 2 processed (architecture §5). */
+        const val NOTICES =
+            "SELECT n.id, n.package, n.app_label, n.key, n.posted_at, n.when_ms, n.title, n.text, n.big_text, n.sub_text, " +
+                "n.text_lines, n.category, n.channel_id, n.extras_json, " +
+                "CASE WHEN EXISTS (SELECT 1 FROM transactions t WHERE t.notice_id = n.id) " +
+                "OR EXISTS (SELECT 1 FROM refunds r WHERE r.estorno_notice_id = n.id OR r.notice_id = n.id) THEN 2 " +
+                "WHEN n.dismissed = 1 THEN 1 ELSE 0 END AS status " +
+                "FROM notices n"
+
+        const val NOT_REFUNDED = "NOT EXISTS (SELECT 1 FROM refunds r WHERE r.transaction_id = t.id)"
+
+        /** v1: the schema of architecture §4, plus merchant_key on transactions (alias and suggestion lookups). */
+        val SCHEMA_V1 = listOf(
+            "CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+            "CREATE TABLE sources(package TEXT PRIMARY KEY, label TEXT NOT NULL, added_at INTEGER NOT NULL)",
+            "CREATE TABLE notices(id INTEGER PRIMARY KEY, package TEXT NOT NULL, app_label TEXT NOT NULL, key TEXT NOT NULL, " +
+                "posted_at INTEGER NOT NULL, when_ms INTEGER NOT NULL, title TEXT NOT NULL, text TEXT NOT NULL, big_text TEXT NOT NULL, " +
+                "sub_text TEXT NOT NULL, text_lines TEXT NOT NULL, category TEXT NOT NULL, channel_id TEXT NOT NULL, " +
+                "extras_json TEXT NOT NULL, content_hash TEXT NOT NULL, dismissed INTEGER NOT NULL DEFAULT 0)",
+            "CREATE TABLE budgets(id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE, position INTEGER NOT NULL)",
+            "CREATE TABLE budget_months(budget_id INTEGER NOT NULL, month TEXT NOT NULL, limit_cents INTEGER NOT NULL, PRIMARY KEY(budget_id, month))",
+            "CREATE TABLE week_steps(budget_id INTEGER NOT NULL, week_start TEXT NOT NULL, cents INTEGER NOT NULL, PRIMARY KEY(budget_id, week_start))",
+            "CREATE TABLE transactions(id INTEGER PRIMARY KEY, notice_id INTEGER NOT NULL, budget_id INTEGER NOT NULL, " +
+                "merchant TEXT NOT NULL, merchant_key TEXT NOT NULL, date TEXT NOT NULL, time TEXT NOT NULL, " +
+                "total_cents INTEGER NOT NULL, corrected INTEGER NOT NULL DEFAULT 0)",
+            "CREATE TABLE installments(transaction_id INTEGER NOT NULL, k INTEGER NOT NULL, date TEXT NOT NULL, cents INTEGER NOT NULL, " +
+                "PRIMARY KEY(transaction_id, k))",
+            "CREATE TABLE refunds(estorno_notice_id INTEGER PRIMARY KEY, transaction_id INTEGER NOT NULL, notice_id INTEGER NOT NULL)",
+            "CREATE TABLE tags(id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE)",
+            "CREATE TABLE transaction_tags(transaction_id INTEGER NOT NULL, tag_id INTEGER NOT NULL, PRIMARY KEY(transaction_id, tag_id))",
+            "CREATE TABLE merchant_aliases(merchant_key TEXT PRIMARY KEY, alias TEXT NOT NULL)",
+            "CREATE INDEX notices_key ON notices(key, posted_at)",
+            "CREATE INDEX notices_posted_at ON notices(posted_at)",
+            "CREATE INDEX transactions_notice ON transactions(notice_id)",
+            "CREATE INDEX transactions_budget ON transactions(budget_id)",
+            "CREATE INDEX transactions_merchant ON transactions(merchant_key)",
+            "CREATE INDEX installments_date ON installments(date)",
+            "CREATE INDEX refunds_transaction ON refunds(transaction_id)",
+            "CREATE INDEX refunds_notice ON refunds(notice_id)",
+            "CREATE INDEX transaction_tags_tag ON transaction_tags(tag_id)",
+        )
+
+        /** One `if (v < N)` per version, each in a transaction that ends by writing N (architecture §4). */
+        fun migrate(c: SQLiteConnection) {
+            val v = c.long("PRAGMA user_version")
+            if (v < 1) {
+                c.execSQL("BEGIN IMMEDIATE")
+                SCHEMA_V1.forEach(c::execSQL)
+                c.execSQL("PRAGMA user_version = 1")
+                c.execSQL("COMMIT")
+            }
+        }
+    }
 }
+
+// ---- SQL helpers: bind by position (Long, Int, String, Boolean) ----
+
+private fun SQLiteStatement.bindAll(args: Array<out Any>) {
+    args.forEachIndexed { i, a ->
+        when (a) {
+            is Long -> bindLong(i + 1, a)
+            is Int -> bindLong(i + 1, a.toLong())
+            is Boolean -> bindLong(i + 1, if (a) 1 else 0)
+            is String -> bindText(i + 1, a)
+            else -> error("can't bind ${a::class}")
+        }
+    }
+}
+
+internal fun SQLiteConnection.exec(sql: String, vararg args: Any) {
+    prepare(sql).use { it.bindAll(args); it.step() }
+}
+
+internal fun <T> SQLiteConnection.query(sql: String, vararg args: Any, row: (SQLiteStatement) -> T): List<T> =
+    prepare(sql).use { st ->
+        st.bindAll(args)
+        val out = ArrayList<T>()
+        while (st.step()) out.add(row(st))
+        out
+    }
+
+/** First column of the first row; 0 when there is none or it's NULL. */
+internal fun SQLiteConnection.long(sql: String, vararg args: Any): Long =
+    prepare(sql).use { st ->
+        st.bindAll(args)
+        if (st.step() && !st.isNull(0)) st.getLong(0) else 0L
+    }
+
+private fun SQLiteConnection.changes() = long("SELECT changes()")
+
+private fun SQLiteConnection.lastId() = long("SELECT last_insert_rowid()")
