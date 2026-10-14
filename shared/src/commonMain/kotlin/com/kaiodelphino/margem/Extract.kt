@@ -13,15 +13,18 @@ private const val WS = "[\\s\\u00A0\\u202F]"
 /** Integer part (max 15 digits, so cents can't overflow) in group 1, decimals in group 2. */
 private const val AMOUNT = "R\\$$WS*(\\d{1,3}(?:\\.\\d{3}){1,4}|\\d{1,15})(?!\\d)(?:[,.](\\d{1,2})(?!\\d))?"
 
-private val TYPED_VALUE = Regex("^$WS*(?:R\\$$WS*)?(\\d{1,3}(?:\\.\\d{3}){1,4}|\\d{1,15})(?:[,.](\\d{1,2}))?$WS*$")
+/** With thousand dots the decimals need a comma ("1.234,56"); without, a dot also works ("12.50"). */
+private val TYPED_VALUE = Regex("^$WS*(?:R\\$$WS*)?(?:(\\d{1,3}(?:\\.\\d{3}){1,4})(?:,(\\d{1,2}))?|(\\d{1,15})(?:[,.](\\d{1,2}))?)$WS*$")
 
 /** The largest value [parseBrl] can return: 15 integer digits and 2 decimals. Forms and limits are capped to it. */
 internal const val MAX_CENTS = 99_999_999_999_999_999L
 
 /** A value typed by the person ("31,50", "1.234,56", "R$ 12") in centavos; Cents(0) when it isn't one. */
 fun parseBrl(text: String): Cents {
-    val m = TYPED_VALUE.matchEntire(text) ?: return Cents(0)
-    return Cents(m.groupValues[1].replace(".", "").toLong() * 100 + m.groupValues[2].padEnd(2, '0').toLong())
+    val g = (TYPED_VALUE.matchEntire(text) ?: return Cents(0)).groupValues
+    val int = g[1].ifEmpty { g[3] }
+    val dec = g[2].ifEmpty { g[4] }
+    return Cents(int.replace(".", "").toLong() * 100 + dec.padEnd(2, '0').toLong())
 }
 
 /** Same merchant across spacing and case: "DL *UberRides" and "dl*uberrides" share a key. */

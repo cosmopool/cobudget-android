@@ -55,7 +55,10 @@ class Db(
         open()
     }
 
-    /** Bumped once at the end of every write that changed something (except [ensureMonths]): screens re-query on change. */
+    /**
+     * Bumped once at the end of every write that changed something (except [ensureMonths]); a
+     * refused write or one that changes nothing doesn't bump. Screens re-query on change.
+     */
     val version: StateFlow<Long> = _version.asStateFlow()
 
     private fun open() {
@@ -194,6 +197,7 @@ class Db(
     /**
      * Changes the month start day (1..31; false otherwise). Deletes the step edits from the start
      * of [today]'s month onward, by the old or the new day, whichever is earlier (spec §4, D10).
+     * The day already set changes nothing.
      */
     suspend fun setMonthStartDay(day: Int, today: LocalDate): Boolean {
         if (day !in 1..31) return false
@@ -208,7 +212,7 @@ class Db(
         return true
     }
 
-    /** Changes the week start day; deletes step edits like [setMonthStartDay]. */
+    /** Changes the week start day; deletes step edits like [setMonthStartDay] (none for the day already set). */
     suspend fun setWeekStart(day: DayOfWeek, today: LocalDate): Unit = write { c ->
         val s = settings(c)
         if (s.weekStart != day) {
@@ -431,10 +435,10 @@ class Db(
      * (BudgetId(0)) for a blank name, a name already used (ignoring case) or limit ≤ 0.
      */
     suspend fun createBudget(name: String, limit: Cents, today: LocalDate): BudgetId {
-        val clean = name.trim()
+        val clean = storable(name.trim())
         if (clean.isEmpty() || limit.v !in 1..MAX_CENTS) return BudgetId(0)
         return write { c ->
-            if (c.long("SELECT COUNT(*) FROM budgets WHERE name = ?", clean) > 0L) return@write BudgetId(0)
+            if (nameTaken(c, clean, 0)) return@write BudgetId(0)
             c.exec("INSERT INTO budgets(name, position) VALUES (?, (SELECT COALESCE(MAX(position), -1) + 1 FROM budgets))", clean)
             val id = c.lastId()
             c.exec(
@@ -447,10 +451,10 @@ class Db(
 
     /** False for a blank or already used name, or an unknown budget. */
     suspend fun renameBudget(id: BudgetId, name: String): Boolean {
-        val clean = name.trim()
+        val clean = storable(name.trim())
         if (clean.isEmpty()) return false
         return write { c ->
-            if (c.long("SELECT COUNT(*) FROM budgets WHERE name = ? AND id != ?", clean, id.v) > 0L) return@write false
+            if (nameTaken(c, clean, id.v)) return@write false
             c.exec("UPDATE budgets SET name = ? WHERE id = ?", clean, id.v)
             c.changes() > 0
         }
@@ -635,7 +639,7 @@ class Db(
     suspend fun spentByDay(from: LocalDate, to: LocalDate): Map<LocalDate, Cents> = read { c ->
         c.query(
             "SELECT i.date, SUM(i.cents) FROM installments i JOIN transactions t ON t.id = i.transaction_id " +
-                "WHERE i.date BETWEEN ? AND ? AND $NOT_REFUNDED GROUP BY i.date ORDER BY i.date",
+                "WHERE i.date BETWEEN ? AND ? AND $NOT_REFUNDED GROUP BY i.date HAVING SUM(i.cents) > 0 ORDER BY i.date",
             from.toString(), to.toString(),
         ) { LocalDate.parse(it.getText(0)) to Cents(it.getLong(1)) }.toMap()
     }
@@ -693,6 +697,12 @@ class Db(
                 "WHERE $where AND i.date BETWEEN ? AND ? AND $NOT_REFUNDED",
             budget, *more, from.toString(), to.toString(),
         )
+
+    /** Budget names are unique ignoring case, accents' case included ("Zé" = "ZÉ"): NOCASE only folds ASCII. */
+    private fun nameTaken(c: SQLiteConnection, name: String, except: Long): Boolean {
+        val lower = name.lowercase()
+        return c.query("SELECT id, name FROM budgets") { it.getLong(0) to it.getText(1) }.any { it.first != except && it.second.lowercase() == lower }
+    }
 
     private fun isPending(c: SQLiteConnection, id: Long) = c.long("SELECT COUNT(*) FROM ($NOTICES) WHERE id = ? AND status = 0", id) > 0L
 
@@ -759,7 +769,7 @@ class Db(
         val tags = form.tags.map { it.trim().lowercase() }.filter(String::isNotEmpty).distinct()
         if (tags.isEmpty() || form.total.v !in 1..MAX_CENTS || form.installments !in 1..MAX_INSTALLMENTS) return 0
         if (c.long("SELECT COUNT(*) FROM budgets WHERE id = ?", form.budget.v) == 0L) return 0
-        val merchant = form.merchant.trim()
+        val merchant = storable(form.merchant.trim())
         val corrected = notice != 0L && extract(notice(c, notice).raw, timeZone).let {
             it.cents != form.total || it.merchant != merchant || it.date != form.date || it.time != form.time
         }
@@ -872,13 +882,29 @@ class Db(
 
 // ---- SQL helpers: bind by position (Long, Int, String, Boolean) ----
 
+/**
+ * The text as SQLite gives it back (D28): its UTF-16 ↔ UTF-8 conversion drops a leading U+FEFF,
+ * drops U+FFFE and turns U+FFFF and lone surrogates into U+FFFD. Every text is bound through this,
+ * so what is read is always what was stored: those become U+FFFD.
+ */
+internal fun storable(s: String): String {
+    fun bad(i: Int): Boolean {
+        val c = s[i]
+        return c == '\uFEFF' || c == '\uFFFE' || c == '\uFFFF' ||
+            (c.isHighSurrogate() && (i + 1 >= s.length || !s[i + 1].isLowSurrogate())) ||
+            (c.isLowSurrogate() && (i == 0 || !s[i - 1].isHighSurrogate()))
+    }
+    if (s.indices.none(::bad)) return s
+    return buildString(s.length) { for (i in s.indices) append(if (bad(i)) '\uFFFD' else s[i]) }
+}
+
 private fun SQLiteStatement.bindAll(args: Array<out Any>) {
     args.forEachIndexed { i, a ->
         when (a) {
             is Long -> bindLong(i + 1, a)
             is Int -> bindLong(i + 1, a.toLong())
             is Boolean -> bindLong(i + 1, if (a) 1 else 0)
-            is String -> bindText(i + 1, a)
+            is String -> bindText(i + 1, storable(a))
             else -> error("can't bind ${a::class}")
         }
     }

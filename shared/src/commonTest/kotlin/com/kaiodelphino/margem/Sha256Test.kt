@@ -3,7 +3,7 @@ package com.kaiodelphino.margem
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** FIPS 180-4 vectors, the padding edges, and the dedupe hash being cobudget's (D32). */
+/** FIPS 180-4 vectors, the padding edges, and the dedupe hash (D32). */
 class Sha256Test {
 
     private fun hex(s: String) = sha256(s.encodeToByteArray()).joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
@@ -28,10 +28,12 @@ class Sha256Test {
     }
 
     @Test
-    fun `content hash is cobudget's - each part then a zero byte`() {
+    fun `content hash - each part prefixed by its length so moving text between fields changes it`() {
         assertEquals(
-            "3ff3977fc3c7eba77f56b38fb4cdb0d805bb5a290eb828df496c2c898e45a031",
+            "afda7d4c7a42989c9bf6eaaabdf015ff7c72e2499e72077874cdc2e6020aa6a4",
             contentHash(listOf("Card purchase", "You spent \$4.50 at Coffee", "", "", "")),
         )
+        assertEquals("bf2a676355968a4e126dd956d1da8537671ea92264687d0384f0a9d8ab7f8582", contentHash(listOf("\u0000\u0000", "É", "", "", "")))
+        assertEquals("09796f801da9edfbef227d57ace945815cdae2143c4a16ae4222205438296474", contentHash(listOf("\u0000", "\u0000É", "", "", "")))
     }
 }

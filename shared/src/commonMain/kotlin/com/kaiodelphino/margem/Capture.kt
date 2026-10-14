@@ -16,8 +16,7 @@ suspend fun capture(db: Db, raw: RawNotice): Boolean {
     if (parts.all(String::isBlank)) return false
     val hash = contentHash(parts)
     return db.write { c ->
-        val label = c.query("SELECT label FROM sources WHERE package = ?", raw.packageName) { it.getText(0) }.firstOrNull()
-            ?: return@write false
+        if (c.long("SELECT COUNT(*) FROM sources WHERE package = ?", raw.packageName) == 0L) return@write false
         // when = 0 means "not set": matching on it would merge unrelated posts forever.
         if (raw.whenMs != 0L &&
             c.long("SELECT EXISTS(SELECT 1 FROM notices WHERE key = ? AND content_hash = ? AND when_ms = ?)", raw.key, hash, raw.whenMs) == 1L
@@ -29,22 +28,23 @@ suspend fun capture(db: Db, raw: RawNotice): Boolean {
         c.exec(
             "INSERT INTO notices(package, app_label, key, posted_at, when_ms, title, text, big_text, sub_text, text_lines, " +
                 "category, channel_id, extras_json, content_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            raw.packageName, raw.appLabel.ifBlank { label }, raw.key, raw.postedAt, raw.whenMs, raw.title, raw.text, raw.bigText,
+            raw.packageName, raw.appLabel, raw.key, raw.postedAt, raw.whenMs, raw.title, raw.text, raw.bigText,
             raw.subText, raw.textLines, raw.category, raw.channelId, raw.extrasJson, hash,
         )
         true
     }
 }
 
-/** SHA-256 of the parts, each followed by a 0 byte, as lowercase hex: the same hash as cobudget's (D32). */
+/** SHA-256 of the parts, each as its byte length (4 bytes, big-endian) then its UTF-8 bytes, as lowercase hex (D32). */
 internal fun contentHash(parts: List<String>): String {
     var size = 0
-    val encoded = parts.map { it.encodeToByteArray().also { b -> size += b.size + 1 } }
+    val encoded = parts.map { it.encodeToByteArray().also { b -> size += 4 + b.size } }
     val bytes = ByteArray(size)
     var at = 0
     for (b in encoded) {
-        b.copyInto(bytes, at)
-        at += b.size + 1
+        for (i in 0 until 4) bytes[at + i] = (b.size ushr (24 - 8 * i)).toByte()
+        b.copyInto(bytes, at + 4)
+        at += 4 + b.size
     }
     return sha256(bytes).joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
 }

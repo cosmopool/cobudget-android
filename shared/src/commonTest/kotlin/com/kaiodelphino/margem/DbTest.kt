@@ -33,7 +33,7 @@ class DbTest {
     }
 
     private fun nu(text: String, at: Long = T, key: String = "nu|$at") =
-        RawNotice(packageName = NUBANK, key = key, postedAt = at, whenMs = at, title = "Nubank", text = text, bigText = text)
+        RawNotice(packageName = NUBANK, appLabel = "Nu", key = key, postedAt = at, whenMs = at, title = "Nubank", text = text, bigText = text)
 
     /** Captures and returns the new notice's id. */
     private suspend fun post(raw: RawNotice): NoticeId {
@@ -273,7 +273,7 @@ class DbTest {
     }
 
     @Test
-    fun `ensureMonths fills skipped months without bumping version, and a new limit holds from now on`() = runTest {
+    fun `ensureMonths fills skipped months without bumping version and a new limit holds from now on`() = runTest {
         val budget = setUp()
         val version = db.version.value
         val calls = writes
@@ -295,7 +295,7 @@ class DbTest {
     }
 
     @Test
-    fun `steps are validated, and a lower limit drops the edits it can't hold`() = runTest {
+    fun `steps are validated and a lower limit drops the edits it can't hold`() = runTest {
         val budget = setUp()
         val oct = YearMonth(2026, 10)
         db.ensureMonths(oct)
@@ -374,7 +374,7 @@ class DbTest {
     }
 
     @Test
-    fun `export then import restores the database, and junk is refused`() = runTest {
+    fun `export then import restores the database and junk is refused`() = runTest {
         val budget = setUp()
         val notice = post(nu(PURCHASE, T))
         acceptAsRead(notice, budget)
