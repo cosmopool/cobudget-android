@@ -1,6 +1,6 @@
 # Margem — arquitetura
 
-Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33). O que está em §11 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33; bloco 2 do `androidApp`, D1, D16, D23, D28, D33, §7). O que está em §11 espera resposta, uma por vez.
 Produto: [spec.md](spec.md). Vocabulário: [glossary.md](glossary.md). Visual: [design_system.html](design_system.html).
 Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o miolo, testes de integração.
 
@@ -8,7 +8,7 @@ Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o
 
 | # | Decisão | Por quê |
 |---|---|---|
-| D1 | **Projeto novo** no mesmo repo, substituindo `app/` pelos módulos `shared` e `androidApp` (D26). applicationId `com.kaiodelphino.margem`. | Instala ao lado do cobudget: dá para importar e comparar antes de desinstalar o antigo. |
+| D1 | **Projeto novo** no mesmo repo: os módulos `shared` e `androidApp` (D26) substituem `app/`, removido no bloco 2 (D33). applicationId `com.kaiodelphino.margem`. | App novo com id próprio. Sem comparação lado a lado com o cobudget, que não será mais usado; o histórico dele entra pela importação (D3, D4). |
 | D2 | Do código atual, entram **captura, dedupe e extração** (Nubank + genérico, `parseBrl`) e os casos de teste deles, adaptados. O resto é refeito. | É o código mais testado contra notificações reais. |
 | D3 | **Importação única** de um backup do cobudget (`.db`), em Ajustes. Traz recados, fontes, marcadores e apelidos. Lançamentos antigos não têm verba: os recados deles voltam à Pauta. | O histórico de recados não se perde. O importador é código descartável. |
 | D4 | A importação passa cada recado pela **mesma regra de dedupe da captura**. | Os dois apps capturam ao mesmo tempo; a mesma regra evita recados duplicados. |
@@ -23,24 +23,24 @@ Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o
 | D13 | **Ajustes e fontes em tabelas** do próprio SQLite. | Entram no backup e na mesma reatividade: mudar o início do mês recalcula tudo. |
 | D14 | **Backup = cópia do arquivo do banco**, feita no `shared` com `kotlinx-io`: exportar = `VACUUM INTO` o caminho dado; importar fecha o escritor e os leitores, substitui o arquivo (apagando `-wal`/`-shm`), reabre, migra e incrementa `version`. A escolha do arquivo (SAF) fica no `androidApp`, que entrega um caminho local. | Sem formato próprio para manter; o mesmo código nos dois apps e nos testes da JVM. |
 | D15 | **UI em Compose Foundation, sem Material 3.** Tokens do book num objeto `Margem` e cerca de 10 componentes próprios. | Fiel ao book, sem desligar padrões do Material. |
-| D16 | **Fontes empacotadas** em `res/font` (Newsreader, Source Sans 3; só os pesos usados). | Funciona offline desde o primeiro uso, inclusive nos widgets. |
+| D16 | **Fontes variáveis empacotadas** em `res/font`, 4 arquivos do `google/fonts` (OFL): Newsreader e Newsreader Italic (`opsz`, `wght`), Source Sans 3 e Source Sans 3 Italic (`wght`). Cada estilo do book vira um `Font` com `FontVariation` (`wght` e, na Newsreader, `opsz` = corpo em sp, limitado a 6–72). Pesos do book: Newsreader 300–600 e itálico 400/500; Source Sans 3 400–700. | Funciona offline desde o primeiro uso, inclusive nos widgets. Um arquivo por família e estilo cobre todos os pesos, e o eixo óptico faz o mesmo desenho ficar robusto pequeno e fino grande, como no book. |
 | D17 | **Gráficos em Canvas próprio**, um Composable por gráfico. | São 4 gráficos simples, no estilo do book; sem dependência. |
 | D18 | **Navegação sem biblioteca**: `sealed interface Screen`, pilha em `rememberSaveable`, um `when` e `BackHandler`. | Explícita; depura fácil. |
 | D19 | **Sem ViewModel.** Cada tela observa `Db.version` e consulta o Db direto; formulários em `rememberSaveable`. | O banco já é o estado; menos classes. |
 | D20 | **Widgets em Jetpack Glance**, redimensionáveis (`SizeMode.Responsive`). | Mesmo jeito de pensar da UI; layout por tamanho. |
 | D21 | **Widgets atualizam** a cada escrita: o `Db` recebe `onWrite: () -> Unit` no construtor e o `MargemApp` passa um lambda que chama `updateAll`. Na virada do dia, pelo `updatePeriodMillis` do sistema. | O `shared` não conhece Glance; o elo escrita → widget fica explícito e segue no debugger. Aceito: o widget pode mostrar o ritmo do dia anterior por um tempo. |
 | D22 | **Dois módulos (D26), poucos arquivos grandes** por assunto (§9). Sem camadas repository/usecase. | Codin' Dirty. |
-| D23 | **Testes**: `commonTest`, rodando na JVM (`jvmTest`) com SQLite real em arquivo temporário, sem Robolectric. **Integração pela API pública** (`Db`, `capture`, `parseBrl`); teste unitário (enxergando `internal`) só em três contratos puros: `budgetMonth`, extração e SHA-256. Robolectric só no `androidApp`, para a conversão de `StatusBarNotification` e os testes de UI Compose (lançar, editar passos). | `.agents/rules/testing.md`. Testes do miolo rápidos e fora do emulador, e que sobrevivem a refatorações. |
+| D23 | **Testes**: `commonTest`, rodando na JVM (`jvmTest`) com SQLite real em arquivo temporário, sem Robolectric. **Integração pela API pública** (`Db`, `capture`, `parseBrl`); teste unitário (enxergando `internal`) só em três contratos puros: `budgetMonth`, extração e SHA-256. Robolectric só no `androidApp`, para a conversão de `StatusBarNotification` e os testes de UI Compose (lançar, editar passos); nesses o `Db` usa `AndroidSQLiteDriver` (exceção à D28). | `.agents/rules/testing.md`. Testes do miolo rápidos e fora do emulador, e que sobrevivem a refatorações. |
 | D24 | **minSdk 29** (Android 10). | Mesmo do cobudget; Glance sem restrições. |
 | D25 | **Captura grava direto no Db**: o `NotificationListenerService` converte o `StatusBarNotification` em `RawNotice` (parse na fronteira) e chama `capture(db, raw)` do `shared`, onde ficam extração e dedupe. | Sem fila; a mesma escrita incrementa a versão e atualiza os widgets. |
 | D26 | **Kotlin Multiplatform + UI nativa.** `shared` (KMP) tem dados e regras: tipos, Db, `budgetMonth`, extração, dedupe, `capture()`. `androidApp` tem Compose, Glance, o serviço de notificações, backup e importação. **Na v1 só o app Android é codado**; o iOS entra depois como `iosApp/` (Xcode + SwiftUI), consumindo o `shared`. | Android 100% nativo; a lógica fica pronta para o iOS sem custo de performance. |
 | D27 | **Alvos do `shared`**: Android pelo plugin `com.android.kotlin.multiplatform.library` (`androidLibrary { }`, não `androidTarget`), `jvm`, `iosArm64`, `iosSimulatorArm64`. Os alvos iOS são declarados na v1 mesmo sem app. | Plugin feito para biblioteca KMP (uma variante só, sem build types). Com iOS declarado, o compilador barra `java.*` e `android.*` no `commonMain` desde o primeiro dia. `jvm` roda os testes sem emulador. |
-| D28 | **`BundledSQLiteDriver` em tudo** (Android, JVM dos testes, iOS). A conversão UTF-16↔UTF-8 do SQLite perde U+FEFF no início, U+FFFE, U+FFFF e surrogates soltos; por isso todo texto é **normalizado na entrada** (esses viram U+FFFD) e o que se lê é sempre o que foi gravado. | A mesma versão do SQLite em teste e em produção; um caminho de código só. Aceito: ~1 MB de lib nativa por ABI no APK. |
+| D28 | **`BundledSQLiteDriver` em tudo** (Android, JVM dos testes, iOS). A conversão UTF-16↔UTF-8 do SQLite perde U+FEFF no início, U+FFFE, U+FFFF e surrogates soltos; por isso todo texto é **normalizado na entrada** (esses viram U+FFFD) e o que se lê é sempre o que foi gravado. **Exceção**: os testes Robolectric do `androidApp` usam `AndroidSQLiteDriver` (`testImplementation` de `androidx.sqlite:sqlite-framework`). | A mesma versão do SQLite em teste e em produção; um caminho de código só. Aceito: ~1 MB de lib nativa por ABI no APK. A exceção existe porque o AAR Android do `sqlite-bundled` só traz `.so` de Android, e o Robolectric roda na JVM do Mac; a semântica do SQL continua coberta pelo `shared` com Bundled (D23), e o `androidApp` só testa a fronteira (`StatusBarNotification` → `capture`) e a UI. Descartados: testes instrumentados no emulador (lentos, fora do `./gradlew test`) e o Robolectric carregando a `.dylib` do artefato JVM (frágil: classpath e lib nativa à mão). |
 | D29 | **Um escritor + 2 leitores.** Escrita numa conexão própria sob `Mutex`; leitura em 2 conexões com `PRAGMA query_only = 1` num `Channel`: `read { }` pega uma, usa e devolve. WAL ligado. | Com WAL, leitura não espera escrita: tela, widget e captura não se bloqueiam. 2 leitores bastam para esses três. |
 | D30 | **`ensureMonths(month)`** roda no escritor **sem incrementar `version`**: `INSERT OR IGNORE` copiando a cota anterior e preenchendo meses pulados. Telas e widgets chamam antes de consultar o mês. | Leitores são `query_only`. As linhas criadas só materializam a cota que já valia: nada na tela muda, e incrementar `version` faria a tela reconsultar em loop. |
 | D31 | **Datas com `kotlinx-datetime`** (`LocalDate`, `LocalTime`, `YearMonth`, `DayOfWeek`) no `shared` e no `androidApp`. Sem `java.time`. | `java.time` não existe no `commonMain`; um tipo de data só nos dois módulos. |
 | D32 | **`content_hash` = SHA-256 escrito à mão no `commonMain`** (sem `java.security`), sobre título, texto, texto longo, subtexto e linhas, cada um como tamanho em bytes (4 bytes) + UTF-8. | Sem dependência de criptografia para um hash de dedupe. O prefixo de tamanho evita colisão entre campos (com o byte 0 do cobudget, `"\0\0"+"É"` = `"\0"+"\0É"`). Não precisa ser igual ao do cobudget: a importação (D4) passa cada recado pelo `capture()`, que recalcula o hash. |
-| D33 | **Na v1, `app/` (cobudget) segue no build** (`:app` + `:shared`) até o bloco do `androidApp`. | O app antigo continua compilando e com testes verdes enquanto o `shared` nasce. |
+| D33 | **Encerrada no bloco 2**: `app/` (cobudget) ficou no build até o bloco do `androidApp` e foi removido no começo dele; o build é `:shared` + `:androidApp`. O que ainda serve de base (listener, `loadLauncherApps`, casos do `CaptureTest`) é lido do histórico (`git show 7616cd2:app/...`). | O cobudget não será mais usado. A importação do backup `.db` dele (D3, D4) continua e não depende do código de `app/`. |
 
 ## 2. Componentes
 
@@ -203,7 +203,8 @@ sealed interface Screen {
   Abrir pelo widget: Intent com extra que vira a aba inicial.
 - **Dados na tela** (D19): um helper `@Composable fun <T> query(db, block: (Db) -> T): T?` que observa `db.version` e roda `block` em IO. Telas de mês chamam `db.ensureMonths(month)` antes (D30). Ações chamam funções de escrita num `rememberCoroutineScope`.
 - **Tema** (D15): `MargemTheme` fornece `Margem.colors`, `Margem.type`, `Margem.space` por `CompositionLocal`; claro/escuro conforme o ajuste (sistema · claro · escuro).
-- **Componentes** (`widgets/Components.kt`): botão, campo de valor, chip de marcador, cartão de recado, régua, seletor de mês, editor de passos, barra de abas, diálogo, snackbar.
+- **Componentes** (`widgets/Components.kt`): botão, campo de valor, chip de marcador, cartão de recado, régua, seletor de mês, editor de passos, barra de abas, diálogo, snackbar; mais seletor de opções, aviso, cabeçalho de página e linha de lista. **Nascem todos no bloco 2**, com o visual das seções 8.x do book.
+- **Catálogo** (só no debug): `src/debug/.../CatalogActivity.kt`, segunda entrada no launcher ("Margem · catálogo"), com todos os componentes nos estados do book, alternando claro e escuro. A conferência dos componentes é visual, nele; não ganham teste unitário.
 - **Gráficos** (`ui/Insights.kt`, D17): verbas por mês, ritmo do mês, ranking, calendário de gastos.
 
 ## 8. Widgets (`androidApp`)
@@ -245,7 +246,7 @@ Pacote Kotlin `com.kaiodelphino.margem` nos dois módulos. Namespace Android: `c
 
 Dependências:
 - `shared`: `kotlinx-coroutines-core`, `kotlinx-datetime`, `kotlinx-io-core` (backup, D14), `androidx.sqlite:sqlite-bundled`; testes: `kotlin-test`, `kotlinx-coroutines-test`.
-- `androidApp`: Compose (foundation, ui, activity-compose), Glance appwidget; testes: JUnit, Robolectric, androidx.test core, compose ui-test.
+- `androidApp`: Compose (foundation, ui, activity-compose), Glance appwidget; testes: JUnit, Robolectric, androidx.test core, `sqlite-framework` (D28), compose ui-test.
 - Sem Room, SQLDelight, Material 3, ViewModel, Navigation ou bibliotecas de gráfico.
 
 ## 10. Testes
@@ -254,7 +255,7 @@ Dependências:
 - **Banco** (`shared/commonTest`, rodando em `jvmTest`, SQLite em arquivo temporário por teste, D23): captura → Pauta → lançar → mês da verba; riscar e trazer de volta; estorno de lançamento e de recado; parcelas atravessando meses; virada (`ensureMonths` cria a linha de cota, preenche meses pulados e não incrementa `version`); mudar dia de início (edições descartadas); apagar verba e marcador; leitura durante escrita (D29); backup e reabertura; importação do cobudget com dedupe.
 - **`budgetMonth`** (`commonTest`): semanas parciais, passos editados e bloqueios, centavos, dia de início 29–31, verba criada no meio do mês, estados e projeção.
 - **Extração** (`commonTest`): os casos atuais de `ExtractTest`/`CaptureTest`, portados para `RawNotice`.
-- **Android** (`androidApp`, Robolectric): conversão `StatusBarNotification` → `RawNotice`; UI Compose: fluxo de lançar (verba + marcador obrigatórios, parcelas, prévia) e editor de passos.
+- **Android** (`androidApp`, Robolectric, `Db` com `AndroidSQLiteDriver`, D28): conversão `StatusBarNotification` → `RawNotice` → `capture` → `pending()`; UI Compose: fluxo de lançar (verba + marcador obrigatórios, parcelas, prévia) e editor de passos.
 - **Rodada de 4 agentes** sobre o contrato fechado (tipos + assinaturas com KDoc, corpos `TODO()`), em paralelo com a implementação, cada um num worktree e num arquivo: **borda** (`EdgeTest`), **fuzz** (`FuzzTest`, seed fixa e tempo limitado), **concorrência e ciclo de vida** (`ConcurrencyTest`), **invariantes** (`InvariantsTest`, sequências aleatórias de ações checando §5). Só veem spec, glossário, arquitetura e contrato. Cada falha é triada pela spec: bug no código → corrige o código; teste que leu a spec errado → corrige o teste, com o porquê. Teste nunca é afrouxado para passar.
 - O alvo `iosSimulatorArm64Test` existe, mas fica fora do loop da v1.
 
