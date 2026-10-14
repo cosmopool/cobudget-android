@@ -207,7 +207,8 @@ data class Week(
     /**
      * The only week of the month not edited (spec §4: one week always stays automatic). [Db.setStep]
      * refuses it with any value; the steps editor shows it in ink 3, without touch. With two or more
-     * weeks not edited, none is locked.
+     * weeks not edited, none is locked. In a month without its limit row (before the budget's first
+     * month), every week is locked.
      */
     val locked: Boolean = false,
 )

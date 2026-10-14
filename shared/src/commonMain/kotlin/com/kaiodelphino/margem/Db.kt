@@ -791,7 +791,10 @@ class Db(
                 "WHERE t.budget_id = ? AND i.date BETWEEN ? AND ? AND $NOT_REFUNDED GROUP BY i.date",
             budget, w.start.low(), w.endInclusive.high(),
         ) { LocalDate.parse(it.getText(0)) to Cents(it.getLong(1)) }.toMap()
-        return budgetMonth(month, s.monthStartDay, s.weekStart, today, Cents(limit), edits, spent)
+        val bm = budgetMonth(month, s.monthStartDay, s.weekStart, today, Cents(limit), edits, spent)
+        // No limit row (before the budget's first month): nothing to edit, every week locked (Week.locked).
+        val hasRow = c.long("SELECT COUNT(*) FROM budget_months WHERE budget_id = ? AND month = ?", budget, month.toString()) > 0L
+        return if (hasRow) bm else bm.copy(weeks = bm.weeks.map { it.copy(locked = true, max = Cents(0)) })
     }
 
     /** Windows of [budget]'s months, from [today]'s on, whose step edits sum more than [limit] (spec §4). */

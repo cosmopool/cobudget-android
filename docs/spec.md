@@ -149,7 +149,7 @@ Cinco abas: **Verbas** (início) · **Pauta** · **Lançamentos** · **Leitura**
 - Tema: sistema (padrão) · claro · escuro. Vale também para os widgets.
 - Ordem do widget de Verbas: risco (padrão) · manual · A–Z.
 - **Backup**: exportar grava uma cópia do banco num arquivo escolhido pela pessoa. Importar **restaura** o backup inteiro no lugar dos dados atuais: pede confirmação num diálogo antes; arquivo que não é backup do Margem é recusado com aviso, sem mudar nada.
-- **Importar do cobudget**: traz **só os recados** de um backup da última versão do app antigo; fontes, marcadores, apelidos e lançamentos não vêm. Os riscados lá entram em Riscados; os outros, inclusive os que tinham lançamento, entram na Pauta, para lançar ou riscar. Recados repetidos (mesma regra da anotação automática) não entram, por isso importar de novo não duplica nada. A tela diz quantos entraram na Pauta, quantos em Riscados e quantos não entraram. Arquivo que não é backup do cobudget é recusado com aviso, sem mudar nada.
+- **Importar do cobudget**: traz **só os recados** de um backup da última versão do app antigo; fontes, marcadores, apelidos e lançamentos não vêm. Os riscados lá entram em Riscados; os outros, inclusive os que tinham lançamento, entram na Pauta, para lançar ou riscar. Recados repetidos (mesma regra da anotação automática) não entram, por isso importar de novo quase nunca duplica algo (só, raramente, um recado sem hora própria na notificação). A tela diz quantos entraram na Pauta, quantos em Riscados e quantos não entraram. Arquivo que não é backup do cobudget é recusado com aviso, sem mudar nada.
 
 ## 8. Widgets
 

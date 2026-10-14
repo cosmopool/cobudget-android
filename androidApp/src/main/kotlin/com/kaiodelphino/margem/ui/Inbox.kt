@@ -229,7 +229,7 @@ fun Inbox(db: Db, granted: Boolean, snack: SnackHost, go: (Screen) -> Unit) {
             if (!granted) item {
                 CapturePaused(
                     { context.startActivity(accessSettingsIntent(context)) },
-                    Modifier.padding(top = 8.dp).testTag(InboxTags.PAUSED), onManual = { go(Screen.NewTransaction) },
+                    Modifier.padding(top = 8.dp).testTag(InboxTags.PAUSED).semantics(mergeDescendants = true) {}, onManual = { go(Screen.NewTransaction) },
                 )
             }
             if (pending == null || seenBefore < 0) return@LazyColumn

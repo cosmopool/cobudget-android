@@ -2,7 +2,6 @@ package com.kaiodelphino.margem
 
 import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.SQLiteDriver
-import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
@@ -41,8 +40,11 @@ private fun isRepost(c: SQLiteConnection, raw: RawNotice, hash: String): Boolean
     val latest = c.query("SELECT content_hash, posted_at FROM notices WHERE key = ? ORDER BY posted_at DESC, id DESC LIMIT 1", raw.key) {
         it.getText(0) to it.getLong(1)
     }.firstOrNull()
-    return latest != null && latest.first == hash && abs(raw.postedAt - latest.second) < DUPLICATE_WINDOW_MS
+    return latest != null && latest.first == hash && apart(raw.postedAt, latest.second) < DUPLICATE_WINDOW_MS.toULong()
 }
+
+/** |a − b| without overflow: postedAt comes from outside and can be anything. */
+private fun apart(a: Long, b: Long): ULong = if (a >= b) a.toULong() - b.toULong() else b.toULong() - a.toULong()
 
 private fun insertNotice(c: SQLiteConnection, raw: RawNotice, hash: String, dismissed: Boolean) = c.exec(
     "INSERT INTO notices(package, app_label, key, posted_at, when_ms, title, text, big_text, sub_text, text_lines, " +
@@ -68,7 +70,9 @@ private fun insertNotice(c: SQLiteConnection, raw: RawNotice, hash: String, dism
  * a transaction it had in the cobudget doesn't matter).
  *
  * One write for the whole file: bumps `version` once when something entered. Importing the same file
- * again adds nothing (every notice is a re-post).
+ * again almost always adds nothing: a notice with `when` set is always a re-post of itself. Without
+ * `when`, the window compares with the latest notice of the key, which the first import may have
+ * changed, so in rare cases a notice enters again (decided in block 5's triage).
  *
  * The cobudget schema v7 table read (Room; the other tables of the file are ignored):
  * ```sql
@@ -99,6 +103,7 @@ suspend fun importCobudget(db: Db, path: String): CobudgetImport {
     }
 }
 
+/** The columns read, in this order; the file must also have `id` and `contentHash` (the whole v7 table). */
 private val COBUDGET_COLUMNS = listOf(
     "packageName", "appLabel", "notificationKey", "postedAt", "notificationWhen", "title", "text", "bigText",
     "subText", "textLines", "category", "channelId", "extrasJson", "dismissed",
@@ -112,7 +117,7 @@ private fun readCobudget(driver: SQLiteDriver, path: String): List<Pair<RawNotic
         try {
             if (c.long("PRAGMA user_version") != 7L) return null
             val columns = c.query("PRAGMA table_info(captured_notifications)") { it.getText(1) }
-            if (!columns.containsAll(COBUDGET_COLUMNS)) return null
+            if (!columns.containsAll(COBUDGET_COLUMNS + listOf("id", "contentHash"))) return null
             c.query("SELECT ${COBUDGET_COLUMNS.joinToString()} FROM captured_notifications ORDER BY postedAt, id") {
                 fun text(i: Int) = if (it.isNull(i)) "" else it.getText(i)
                 RawNotice(

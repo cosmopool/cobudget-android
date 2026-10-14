@@ -292,7 +292,7 @@ fun Settings(db: Db, granted: Boolean, go: (Screen) -> Unit) {
     Column {
         TopBar("Ajustes")
         Column(Modifier.testTag(SettingsTags.LIST).verticalScroll(rememberScrollState()).padding(start = Margem.space.page, end = Margem.space.page, bottom = 24.dp)) {
-            if (!granted) CapturePaused({ context.startActivity(accessSettingsIntent(context)) }, Modifier.padding(top = 8.dp, bottom = 8.dp).testTag(SettingsTags.PAUSED))
+            if (!granted) CapturePaused({ context.startActivity(accessSettingsIntent(context)) }, Modifier.padding(top = 8.dp, bottom = 8.dp).testTag(SettingsTags.PAUSED).semantics(mergeDescendants = true) {})
             SectionLine("Anotação", Modifier.padding(top = 0.dp))
             Entry("Fontes", sources?.joinToString(", ") { it.label }?.ifEmpty { "nenhuma fonte escolhida" }.orEmpty(), SettingsTags.SOURCES) { go(Screen.Sources) }
             Entry("Riscados", "trazer recados de volta à pauta", SettingsTags.DISMISSED) { go(Screen.Dismissed) }
@@ -537,15 +537,27 @@ fun BackupScreen(db: Db, snack: SnackHost, back: () -> Unit) {
     val today = LocalToday.current()
     // The picked file, copied locally, waiting for the dialog.
     var incoming by rememberSaveable { mutableStateOf("") }
+    // A picker or a copy is under way: a double tap opens one picker only.
+    var busy by remember { mutableStateOf(false) }
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        snack.scope.launch { snack.show(Snack(if (exportInto(context, db, uri)) "Backup exportado." else "Não deu para exportar o backup.")) }
+        if (uri == null) {
+            busy = false
+            return@rememberLauncherForActivityResult
+        }
+        snack.scope.launch {
+            snack.show(Snack(if (exportInto(context, db, uri)) "Backup exportado." else "Não deu para exportar o backup."))
+            busy = false
+        }
     }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+        if (uri == null) {
+            busy = false
+            return@rememberLauncherForActivityResult
+        }
         scope.launch {
             val path = copyIn(context, uri)
             if (path.isEmpty()) snack.show(Snack(NOT_A_BACKUP)) else incoming = path
+            busy = false
         }
     }
     Column {
@@ -555,12 +567,12 @@ fun BackupScreen(db: Db, snack: SnackHost, back: () -> Unit) {
                 "Exportar grava uma cópia de tudo — verbas, lançamentos, recados e ajustes — num arquivo que você escolhe.",
                 sans(15f, 400, 22f), Modifier.padding(bottom = 12.dp), Margem.colors.inkSecondary,
             )
-            Button("Exportar", { export.launch("margem-$today.db") }, Modifier.testTag(SettingsTags.BACKUP_EXPORT), kind = ButtonKind.SECONDARY)
+            Button("Exportar", { if (!busy) { busy = true; export.launch("margem-$today.db") } }, Modifier.testTag(SettingsTags.BACKUP_EXPORT), kind = ButtonKind.SECONDARY)
             Text(
                 "Importar restaura um backup do Margem no lugar dos dados atuais.",
                 sans(15f, 400, 22f), Modifier.padding(top = 24.dp, bottom = 12.dp), Margem.colors.inkSecondary,
             )
-            Button("Importar", { pick.launch(arrayOf("*/*")) }, Modifier.testTag(SettingsTags.BACKUP_IMPORT), kind = ButtonKind.SECONDARY)
+            Button("Importar", { if (!busy && incoming.isEmpty()) { busy = true; pick.launch(arrayOf("*/*")) } }, Modifier.testTag(SettingsTags.BACKUP_IMPORT), kind = ButtonKind.SECONDARY)
         }
     }
     if (incoming.isNotEmpty()) MargemDialog(
@@ -604,8 +616,10 @@ fun CobudgetScreen(db: Db, back: () -> Unit) {
     var result by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        busy = true
+        if (uri == null) {
+            busy = false
+            return@rememberLauncherForActivityResult
+        }
         scope.launch {
             val path = copyIn(context, uri)
             val r = if (path.isEmpty()) CobudgetImport() else importCobudget(db, path)
@@ -619,10 +633,10 @@ fun CobudgetScreen(db: Db, back: () -> Unit) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Margem.space.page)) {
             Text(
                 "Traz os recados de um backup do cobudget. Os riscados lá entram em Riscados; os outros, mesmo os que já tinham lançamento, " +
-                    "entram na Pauta para lançar com verba. Fontes, marcadores e apelidos não vêm. Recados repetidos não entram: importar de novo não duplica nada.",
+                    "entram na Pauta para lançar com verba. Fontes, marcadores e apelidos não vêm. Recados repetidos não entram, então importar de novo quase nunca duplica algo.",
                 sans(15f, 400, 22f), Modifier.padding(bottom = 12.dp), Margem.colors.inkSecondary,
             )
-            Button("Escolher arquivo", { pick.launch(arrayOf("*/*")) }, Modifier.testTag(SettingsTags.COBUDGET_PICK), kind = ButtonKind.SECONDARY, enabled = !busy)
+            Button("Escolher arquivo", { if (!busy) { busy = true; pick.launch(arrayOf("*/*")) } }, Modifier.testTag(SettingsTags.COBUDGET_PICK), kind = ButtonKind.SECONDARY, enabled = !busy)
             if (result.isNotEmpty()) Text(result, serif(17, 400, 24), Modifier.padding(top = 20.dp).testTag(SettingsTags.COBUDGET_RESULT))
         }
     }
