@@ -25,7 +25,7 @@ import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 
-private const val SCHEMA_VERSION = 2L
+private const val SCHEMA_VERSION = 1L
 private const val MAX_INSTALLMENTS = 400
 
 /**
@@ -300,7 +300,8 @@ class Db(
      * cleaning, total > 0, installments in 1..400 and every installment dated in 0001-01-01..9999-12-31
      * (dates are stored as ISO text, which sorts only in that range).
      *
-     * Writes the transaction, its installments and its tags in one transaction: installment k
+     * Writes the transaction, under an id never used before (not even by a deleted transaction: a stale
+     * edit screen can't open another one), its installments and its tags in one transaction: installment k
      * (1..n) is dated purchase date + (k−1) months, moved to the nearest day inside the k-th
      * budget month when that date falls outside it (start days 29–31); each is total / n rounded
      * down and the last absorbs the remainder. `corrected` when total, merchant, date or time
@@ -311,7 +312,7 @@ class Db(
         TransactionId(saveTransaction(c, 0, notice.v, form))
     }
 
-    /** Lançamento manual: same rules as [accept], with no notice; never corrected. */
+    /** Lançamento manual: same rules as [accept], with no notice; never corrected. Like [accept], under an id never used before. */
     suspend fun addManual(form: TransactionForm): TransactionId = write { c -> TransactionId(saveTransaction(c, 0, 0, form)) }
 
     /**
@@ -931,7 +932,10 @@ class Db(
 
         const val NOT_REFUNDED = "NOT EXISTS (SELECT 1 FROM refunds r WHERE r.transaction_id = t.id)"
 
-        /** v1: the schema of architecture §4, plus merchant_key on transactions (alias and suggestion lookups). */
+        /**
+         * v1: the schema of architecture §4, plus merchant_key on transactions (alias and suggestion lookups).
+         * Budget and transaction ids are AUTOINCREMENT: a deleted one never comes back (D38).
+         */
         val SCHEMA_V1 = listOf(
             "CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)",
             "CREATE TABLE sources(package TEXT PRIMARY KEY, label TEXT NOT NULL, added_at INTEGER NOT NULL)",
@@ -939,10 +943,10 @@ class Db(
                 "posted_at INTEGER NOT NULL, when_ms INTEGER NOT NULL, title TEXT NOT NULL, text TEXT NOT NULL, big_text TEXT NOT NULL, " +
                 "sub_text TEXT NOT NULL, text_lines TEXT NOT NULL, category TEXT NOT NULL, channel_id TEXT NOT NULL, " +
                 "extras_json TEXT NOT NULL, content_hash TEXT NOT NULL, dismissed INTEGER NOT NULL DEFAULT 0)",
-            "CREATE TABLE budgets(id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE, position INTEGER NOT NULL)",
+            "CREATE TABLE budgets(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL COLLATE NOCASE UNIQUE, position INTEGER NOT NULL)",
             "CREATE TABLE budget_months(budget_id INTEGER NOT NULL, month TEXT NOT NULL, limit_cents INTEGER NOT NULL, PRIMARY KEY(budget_id, month))",
             "CREATE TABLE week_steps(budget_id INTEGER NOT NULL, week_start TEXT NOT NULL, cents INTEGER NOT NULL, PRIMARY KEY(budget_id, week_start))",
-            "CREATE TABLE transactions(id INTEGER PRIMARY KEY, notice_id INTEGER NOT NULL, budget_id INTEGER NOT NULL, " +
+            "CREATE TABLE transactions(id INTEGER PRIMARY KEY AUTOINCREMENT, notice_id INTEGER NOT NULL, budget_id INTEGER NOT NULL, " +
                 "merchant TEXT NOT NULL, merchant_key TEXT NOT NULL, date TEXT NOT NULL, time TEXT NOT NULL, " +
                 "total_cents INTEGER NOT NULL, corrected INTEGER NOT NULL DEFAULT 0)",
             "CREATE TABLE installments(transaction_id INTEGER NOT NULL, k INTEGER NOT NULL, date TEXT NOT NULL, cents INTEGER NOT NULL, " +
@@ -962,14 +966,6 @@ class Db(
             "CREATE INDEX transaction_tags_tag ON transaction_tags(tag_id)",
         )
 
-        /** v2: budget ids are never reused (AUTOINCREMENT). */
-        val SCHEMA_V2 = listOf(
-            "CREATE TABLE budgets_v2(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL COLLATE NOCASE UNIQUE, position INTEGER NOT NULL)",
-            "INSERT INTO budgets_v2(id, name, position) SELECT id, name, position FROM budgets",
-            "DROP TABLE budgets",
-            "ALTER TABLE budgets_v2 RENAME TO budgets",
-        )
-
         /** One `if (v < N)` per version, each in a transaction that ends by writing N (architecture §4). */
         fun migrate(c: SQLiteConnection) {
             val v = c.long("PRAGMA user_version")
@@ -979,12 +975,7 @@ class Db(
                 c.execSQL("PRAGMA user_version = 1")
                 c.execSQL("COMMIT")
             }
-            if (v < 2) {
-                c.execSQL("BEGIN IMMEDIATE")
-                SCHEMA_V2.forEach(c::execSQL)
-                c.execSQL("PRAGMA user_version = 2")
-                c.execSQL("COMMIT")
-            }
+
         }
     }
 }

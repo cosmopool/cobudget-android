@@ -417,6 +417,18 @@ class DbTest {
     }
 
     @Test
+    fun `a deleted transaction's id never comes back`() = runTest {
+        val budget = setUp()
+        val form = TransactionForm(budget, listOf("x"), Cents(100), 1, "Loja", OCT_6, LocalTime(10, 0))
+        val first = db.addManual(form)
+        val last = db.accept(post(nu(PURCHASE)), form)
+        db.deleteTransaction(last)
+        val next = db.addManual(form)
+        assertTrue(next.v > last.v && first.v < last.v)
+        assertEquals(TransactionDetail(), db.transaction(last))
+    }
+
+    @Test
     fun `limitDropsEdits says beforehand what setLimit deletes`() = runTest {
         val budget = setUp()
         val oct = YearMonth(2026, 10)

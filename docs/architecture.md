@@ -1,6 +1,6 @@
 # Margem — arquitetura
 
-Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33; bloco 2 do `androidApp`, D1, D16, D23, D28, D33, §7; bloco 3, Verbas, D34–D35, §5–§7, §10; bloco 4, ciclo do recado, D36–D37, §7, §9, §10). O que está em §11 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33; bloco 2 do `androidApp`, D1, D16, D23, D28, D33, §7; bloco 3, Verbas, D34–D35, §5–§7, §10; bloco 4, ciclo do recado, D36–D38, §4, §7, §9, §10). O que está em §11 espera resposta, uma por vez.
 Produto: [spec.md](spec.md). Vocabulário: [glossary.md](glossary.md). Visual: [design_system.html](design_system.html).
 Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o miolo, testes de integração.
 
@@ -44,6 +44,7 @@ Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o
 | D35 | **Testes de UI acham elementos por `testTag`**: cada arquivo de tela tem um objeto de tags (`BudgetTags` em `ui/Budgets.kt`), uma `const val` por elemento que os testes tocam ou leem, com KDoc dizendo o que ele mostra. O objeto é parte do contrato do bloco. | A rodada de agentes escreve testes de UI antes das telas existirem; as tags fixas são a API pública da tela. Texto muda com o glossário; a tag não. |
 | D36 | **Seletor de data e hora próprio** (`DateTimeDialog` em `widgets/Components.kt`, book 8.9), sem o `DatePicker` do Material: grade do mês com a semana dos Ajustes, dias futuros desabilitados, hora HH:MM. Tags em `DateTimeTags`. | D15: sem Material 3. Um componente, usado pelo formulário de lançar/editar/manual. |
 | D37 | **Datas de 0001-01-01 a 9999-12-31**: lançar, lançamento manual e editar recusam o formulário quando alguma parcela cai fora desse intervalo (decidido na triagem do bloco 4). Nas leituras, os limites de um mês são presos ao intervalo, para um mês que o atravessa (dezembro de 9999 com início no dia 15) achar as suas parcelas. | Datas são texto ISO (§3), que só ordena como data nos anos 0001–9999: "+10000-01-31" viria antes de "0001-01-01". Recusar na fronteira mantém o texto ordenável sem migrar o schema. |
+| D38 | **Id de lançamento nunca é reaproveitado** (`AUTOINCREMENT`), como o de verba. Os dois estão direto no schema v1, sem migração: ninguém usou o app ainda. Decidido na triagem do bloco 4. | Apagar o lançamento mais novo e criar outro reaproveitaria o id: uma edição aberta, ou restaurada depois de o processo morrer, abriria outro lançamento. |
 | D33 | **Encerrada no bloco 2**: `app/` (cobudget) ficou no build até o bloco do `androidApp` e foi removido no começo dele; o build é `:shared` + `:androidApp`. O que ainda serve de base (listener, `loadLauncherApps`, casos do `CaptureTest`) é lido do histórico (`git show 7616cd2:app/...`). | O cobudget não será mais usado. A importação do backup `.db` dele (D3, D4) continua e não depende do código de `app/`. |
 
 ## 2. Componentes
@@ -111,7 +112,7 @@ CREATE TABLE notices(
   dismissed INTEGER NOT NULL DEFAULT 0
 );
 
--- AUTOINCREMENT (v2): id de verba apagada nunca volta; tela restaurada ou widget com o id antigo não abre outra verba.
+-- AUTOINCREMENT: id de verba apagada nunca volta; tela restaurada ou widget com o id antigo não abre outra verba.
 CREATE TABLE budgets(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL COLLATE NOCASE UNIQUE, position INTEGER NOT NULL);
 
 -- Cota de cada mês (D8, D30).
@@ -123,8 +124,9 @@ CREATE TABLE week_steps(budget_id INTEGER NOT NULL, week_start TEXT NOT NULL, ce
   PRIMARY KEY(budget_id, week_start));
 
 -- Lançamentos. notice_id = 0: manual. corrected = emendado.
+-- AUTOINCREMENT: id de lançamento apagado nunca volta, como o das verbas (D38).
 CREATE TABLE transactions(
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   notice_id INTEGER NOT NULL, budget_id INTEGER NOT NULL,
   merchant TEXT NOT NULL, date TEXT NOT NULL, time TEXT NOT NULL,
   total_cents INTEGER NOT NULL, corrected INTEGER NOT NULL DEFAULT 0
