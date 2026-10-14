@@ -15,6 +15,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateRange
 import kotlinx.datetime.LocalTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.YearMonth
@@ -87,15 +88,19 @@ class Db(
     internal suspend fun <T> write(bump: Boolean = true, block: (SQLiteConnection) -> T): T = withContext(Dispatchers.IO) {
         var changed = false
         val result = writeLock.withLock {
-            val before = writer.long("SELECT total_changes()")
+            // total_changes() read inside the transaction: AndroidSQLiteDriver (tests, D28) runs a
+            // statement outside one on another pooled connection, whose count never moves.
             writer.execSQL("BEGIN IMMEDIATE")
             val r = try {
-                block(writer).also { writer.execSQL("COMMIT") }
+                val before = writer.long("SELECT total_changes()")
+                block(writer).also {
+                    changed = writer.long("SELECT total_changes()") != before
+                    writer.execSQL("COMMIT")
+                }
             } catch (e: Throwable) {
                 writer.execSQL("ROLLBACK")
                 throw e
             }
-            changed = writer.long("SELECT total_changes()") != before
             if (changed && bump) _version.value++
             r
         }
@@ -474,12 +479,7 @@ class Db(
             ensureMonth(c, id.v, current)
             c.exec("INSERT OR IGNORE INTO budget_months(budget_id, month, limit_cents) VALUES (?, ?, ?)", id.v, current.toString(), limit.v)
             c.exec("UPDATE budget_months SET limit_cents = ? WHERE budget_id = ? AND month >= ?", limit.v, id.v, current.toString())
-            val edits = c.query("SELECT week_start, cents FROM week_steps WHERE budget_id = ? AND week_start >= ?", id.v, monthWindow(current, day).start.toString()) {
-                LocalDate.parse(it.getText(0)) to it.getLong(1)
-            }
-            for ((month, inMonth) in edits.groupBy { monthOf(it.first, day) }) {
-                if (inMonth.sumOf { it.second } <= limit.v) continue
-                val w = monthWindow(month, day)
+            for (w in editsOver(c, id.v, limit.v, today)) {
                 c.exec("DELETE FROM week_steps WHERE budget_id = ? AND week_start BETWEEN ? AND ?", id.v, w.start.toString(), w.endInclusive.toString())
             }
             true
@@ -491,7 +491,10 @@ class Db(
      * has edited steps summing more than [limit] (spec §4). Writes nothing; the screen asks before
      * saving when true. False when [setLimit] would refuse (limit ≤ 0 or above the maximum, unknown budget).
      */
-    suspend fun limitDropsEdits(id: BudgetId, limit: Cents, today: LocalDate): Boolean = TODO()
+    suspend fun limitDropsEdits(id: BudgetId, limit: Cents, today: LocalDate): Boolean {
+        if (limit.v !in 1..MAX_CENTS) return false
+        return read { c -> editsOver(c, id.v, limit.v, today).isNotEmpty() }
+    }
 
     /** Deletes the budget, its transactions (notices back to the Pauta), limits and step edits. */
     suspend fun deleteBudget(id: BudgetId): Unit = write { c ->
@@ -529,7 +532,12 @@ class Db(
      * week goes back to sharing what the edits leave with the other automatic weeks (spec §4). False,
      * with nothing changed, when that week of that month has no edit or the budget is unknown.
      */
-    suspend fun clearStep(budget: BudgetId, month: YearMonth, weekStart: LocalDate): Boolean = TODO()
+    suspend fun clearStep(budget: BudgetId, month: YearMonth, weekStart: LocalDate): Boolean = write { c ->
+        val w = monthWindow(month, settings(c).monthStartDay)
+        if (weekStart !in w) return@write false
+        c.exec("DELETE FROM week_steps WHERE budget_id = ? AND week_start = ?", budget.v, weekStart.toString())
+        c.changes() > 0
+    }
 
     /**
      * Nova verba's preview (book 10.7): the [BudgetMonth] that a budget created on [today] with [limit]
@@ -537,7 +545,13 @@ class Db(
      * Equal to [budgetDetail]'s month of that budget right after [createBudget] with the same limit
      * and day. Zero BudgetMonth when [createBudget] would refuse the limit (≤ 0 or above the maximum).
      */
-    suspend fun previewBudget(limit: Cents, today: LocalDate): BudgetMonth = TODO()
+    suspend fun previewBudget(limit: Cents, today: LocalDate): BudgetMonth {
+        if (limit.v !in 1..MAX_CENTS) return BudgetMonth()
+        return read { c ->
+            val s = settings(c)
+            budgetMonth(monthOf(today, s.monthStartDay), s.monthStartDay, s.weekStart, today, limit, emptyMap(), emptyMap())
+        }
+    }
 
     /** Budgets with a limit row in [month], with their [BudgetMonth], in [order]. */
     suspend fun budgetsOverview(month: YearMonth, today: LocalDate, order: BudgetOrder): List<BudgetSummary> = read { c ->
@@ -557,7 +571,23 @@ class Db(
      * One budget in [month]: its [BudgetMonth], the lines of the month ([BudgetDetail.lines]) and its
      * first month. Zero when unknown.
      */
-    suspend fun budgetDetail(id: BudgetId, month: YearMonth, today: LocalDate): BudgetDetail = TODO()
+    suspend fun budgetDetail(id: BudgetId, month: YearMonth, today: LocalDate): BudgetDetail = read { c ->
+        val name = c.query("SELECT name FROM budgets WHERE id = ?", id.v) { it.getText(0) }.firstOrNull() ?: return@read BudgetDetail()
+        val bm = budgetMonth(c, settings(c), id.v, month, today)
+        val from = bm.start.toString()
+        val to = bm.end.toString()
+        val rows = transactionRows(
+            c, "WHERE t.budget_id = ? AND EXISTS (SELECT 1 FROM installments i WHERE i.transaction_id = t.id AND i.date BETWEEN ? AND ?)", id.v, from, to,
+        ).associateBy { it.id.v }
+        // At most one installment of a transaction falls in a month (D7).
+        val lines = c.query(
+            "SELECT i.transaction_id, i.k, i.date, i.cents FROM installments i JOIN transactions t ON t.id = i.transaction_id " +
+                "WHERE t.budget_id = ? AND i.date BETWEEN ? AND ? ORDER BY i.date, t.time, t.id",
+            id.v, from, to,
+        ) { MonthLine(rows.getValue(it.getLong(0)), it.getInt(1), LocalDate.parse(it.getText(2)), Cents(it.getLong(3))) }
+        val first = c.query("SELECT MIN(month) FROM budget_months WHERE budget_id = ?", id.v) { if (it.isNull(0)) NO_MONTH else YearMonth.parse(it.getText(0)) }
+        BudgetDetail(id, name, bm, lines, first.firstOrNull() ?: NO_MONTH)
+    }
 
     // ---- Tags ----
 
@@ -705,6 +735,16 @@ class Db(
             budget, w.start.toString(), w.endInclusive.toString(),
         ) { LocalDate.parse(it.getText(0)) to Cents(it.getLong(1)) }.toMap()
         return budgetMonth(month, s.monthStartDay, s.weekStart, today, Cents(limit), edits, spent)
+    }
+
+    /** Windows of [budget]'s months, from [today]'s on, whose step edits sum more than [limit] (spec §4). */
+    private fun editsOver(c: SQLiteConnection, budget: Long, limit: Long, today: LocalDate): List<LocalDateRange> {
+        val day = settings(c).monthStartDay
+        val edits = c.query(
+            "SELECT week_start, cents FROM week_steps WHERE budget_id = ? AND week_start >= ?",
+            budget, monthWindow(monthOf(today, day), day).start.toString(),
+        ) { LocalDate.parse(it.getText(0)) to it.getLong(1) }
+        return edits.groupBy { monthOf(it.first, day) }.filter { (_, inMonth) -> inMonth.sumOf { it.second } > limit }.map { monthWindow(it.key, day) }
     }
 
     /** Σ installments in [from]..[to] of the non-refunded transactions matching [where] (over `t`). */

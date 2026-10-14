@@ -208,10 +208,10 @@ private fun Catalog(dark: Boolean, setDark: (Boolean) -> Unit) {
                 StepsEditor(
                     listOf(
                         Week(LocalDate(2026, 10, 1), LocalDate(2026, 10, 4), Cents(43000), edited = true),
-                        Week(LocalDate(2026, 10, 5), LocalDate(2026, 10, 11), Cents(21000)),
-                        Week(LocalDate(2026, 10, 12), LocalDate(2026, 10, 18), Cents(21000)),
-                        Week(LocalDate(2026, 10, 19), LocalDate(2026, 10, 25), Cents(21000)),
-                        Week(LocalDate(2026, 10, 26), LocalDate(2026, 10, 31), Cents(18000)),
+                        Week(LocalDate(2026, 10, 5), LocalDate(2026, 10, 11), Cents(21000), edited = true),
+                        Week(LocalDate(2026, 10, 12), LocalDate(2026, 10, 18), Cents(21000), edited = true),
+                        Week(LocalDate(2026, 10, 19), LocalDate(2026, 10, 25), Cents(21000), edited = true),
+                        Week(LocalDate(2026, 10, 26), LocalDate(2026, 10, 31), Cents(18000), locked = true),
                     ),
                     TODAY, {},
                 )

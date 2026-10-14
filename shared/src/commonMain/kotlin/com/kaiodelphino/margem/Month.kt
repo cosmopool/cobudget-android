@@ -77,6 +77,7 @@ internal fun budgetMonth(
     val steps = LongArray(n)
     val rest = limit.v - editedSum
     val autoDays = (0 until n).filter { !edited[it] }.sumOf { days[it] }
+    val autoCount = edited.count { !it }
     var lastAuto = -1
     var given = 0L
     for (i in 0 until n) {
@@ -125,21 +126,22 @@ internal fun budgetMonth(
         limit = limit,
         spent = Cents(spent),
         remaining = Cents(limit.v - spent),
-        weeks = List(n) { Week(starts[it], ends[it], Cents(steps[it]), edited[it], Cents(weekSpent[it])) },
+        weeks = List(n) {
+            // Max of a step edit: what the other edits leave; the only automatic week left is locked (spec §4).
+            val locked = !edited[it] && autoCount == 1
+            val max = if (locked) 0L else limit.v - editedSum + (if (edited[it]) steps[it] else 0L)
+            Week(starts[it], ends[it], Cents(steps[it]), edited[it], Cents(weekSpent[it]), Cents(max), locked)
+        },
         ideal = Cents(ideal),
         status = status,
         projection = Cents(projection),
     )
 }
 
-/**
- * The most a step edit on the week starting [weekStart] accepts: limit − Σ other edited weeks.
- * Cents(-1) when it can't be edited: not a week of the month, or the only one left automatic.
- */
+/** Week.max of the week starting [weekStart]; Cents(-1) when it can't be edited: not a week of the month, or locked. */
 internal fun maxStep(bm: BudgetMonth, weekStart: LocalDate): Cents {
     val week = bm.weeks.firstOrNull { it.start == weekStart } ?: return Cents(-1)
-    if (!week.edited && bm.weeks.count { !it.edited } == 1) return Cents(-1)
-    return Cents(bm.limit.v - bm.weeks.filter { it.edited && it.start != weekStart }.sumOf { it.step.v })
+    return if (week.locked) Cents(-1) else week.max
 }
 
 /**

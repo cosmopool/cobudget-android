@@ -60,9 +60,11 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -244,11 +246,13 @@ fun IconButton(icon: Int, onClick: () -> Unit, modifier: Modifier = Modifier, di
 @Composable
 private fun FieldLabel(text: String, color: Color) = Text(text.uppercase(), sans(11f, 600, 14f, 0.12f), color = color)
 
+/** With [tag], the error line is tagged "$tag.error" (D35). */
 @Composable
-private fun FieldHint(hint: String, error: String) {
+private fun FieldHint(hint: String, error: String, tag: String = "") {
     if (hint.isEmpty() && error.isEmpty()) return
     val c = Margem.colors
-    Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    val tagged = if (tag.isNotEmpty() && error.isNotEmpty()) Modifier.testTag("$tag.error").semantics(mergeDescendants = true) {} else Modifier
+    Row(tagged.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (error.isNotEmpty()) Icon(R.drawable.i_aviso, Modifier.padding(top = 1.dp), c.overrun, 16.dp)
         Text(error.ifEmpty { hint }, sans(13.5f, 400, 18f), color = if (error.isNotEmpty()) c.overrun else c.inkTertiary)
     }
@@ -267,13 +271,13 @@ private fun Modifier.fieldLine(focused: Boolean, error: Boolean, enabled: Boolea
 
 /**
  * Book §8.2: a printed form line, rubric on top, line below, no box. [alias] draws the text with the
- * argila dotted underline (Apelido).
+ * argila dotted underline (Apelido). [tag] goes on the input, "$tag.error" on the error line (D35).
  */
 @Composable
 fun Field(
     value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier,
     placeholder: String = "", hint: String = "", error: String = "", enabled: Boolean = true,
-    alias: Boolean = false, focused: Boolean = false, trailing: @Composable (() -> Unit)? = null,
+    alias: Boolean = false, focused: Boolean = false, tag: String = "", trailing: @Composable (() -> Unit)? = null,
 ) {
     val c = Margem.colors
     val interaction = remember { MutableInteractionSource() }
@@ -282,7 +286,7 @@ fun Field(
     Column(modifier.padding(top = 8.dp, bottom = 6.dp)) {
         FieldLabel(label, if (error.isNotEmpty()) c.overrun else if (isFocused) c.ink else c.inkTertiary)
         BasicTextField(
-            value, onChange, Modifier.fillMaxWidth(), enabled = enabled, readOnly = !enabled, onTextLayout = { layout = it },
+            value, onChange, Modifier.fillMaxWidth().then(if (tag.isEmpty()) Modifier else Modifier.testTag(tag)), enabled = enabled, readOnly = !enabled, onTextLayout = { layout = it },
             textStyle = serif(19, 400, 24).copy(color = if (enabled) c.ink else c.inkTertiary),
             singleLine = true, interactionSource = interaction, cursorBrush = SolidColor(c.info),
             decorationBox = { inner ->
@@ -305,7 +309,7 @@ fun Field(
                 }
             },
         )
-        FieldHint(hint, error)
+        FieldHint(hint, error, tag)
     }
 }
 
@@ -351,12 +355,13 @@ private class CentsTransformation(val ink: Color, val dim: Color) : androidx.com
 /**
  * Book §8.2 money field: "R$" in the sans, the value in Newsreader [size] sp, filled from the cents.
  * [original] ≠ null shows the emenda line ("‸ emendado · o recado dizia R$ 32,90 · Desfazer").
+ * [tag] goes on the input, "$tag.error" on the error line (D35).
  */
 @Composable
 fun MoneyField(
     cents: Cents, onChange: (Cents) -> Unit, label: String, modifier: Modifier = Modifier,
     hint: String = "", error: String = "", size: Int = 46, original: Cents? = null, onUndo: () -> Unit = {},
-    focused: Boolean = false,
+    focused: Boolean = false, tag: String = "",
 ) {
     val c = Margem.colors
     val interaction = remember { MutableInteractionSource() }
@@ -367,7 +372,7 @@ fun MoneyField(
         BasicTextField(
             TextFieldValue(digits, androidx.compose.ui.text.TextRange(digits.length)),
             { v -> onChange(Cents(v.text.filter(Char::isDigit).trimStart('0').take(12).ifEmpty { "0" }.toLong())) },
-            Modifier.fillMaxWidth(),
+            Modifier.fillMaxWidth().then(if (tag.isEmpty()) Modifier else Modifier.testTag(tag)),
             textStyle = serif(size, 400, size + 6, tabular = true).copy(color = c.ink),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true, interactionSource = interaction, cursorBrush = SolidColor(c.info),
@@ -384,7 +389,7 @@ fun MoneyField(
             },
         )
         if (original != null) Emenda(original, onUndo)
-        FieldHint(hint, error)
+        FieldHint(hint, error, tag)
     }
 }
 
@@ -675,19 +680,21 @@ fun Meter(month: BudgetMonth, modifier: Modifier = Modifier, tall: Boolean = fal
 // ---- 8.6 Month and weekly steps ----
 
 /**
- * Book §8.6 month selector: ‹ "outubro de 2026" / "1 A 31 · MÊS ATUAL" ›. The next arrow is in ink 3
- * on the current month.
+ * Book §8.6 month selector: ‹ "outubro de 2026" / "1 A 31 · MÊS ATUAL" ›. An arrow that can't move is in
+ * ink 3 and disabled. [tag]: "$tag.prev", "$tag.label", "$tag.next" (D35).
  */
 @Composable
-fun MonthPicker(month: YearMonth, sub: String, onPrev: () -> Unit, onNext: () -> Unit, modifier: Modifier = Modifier, canNext: Boolean = true) =
-    Row(modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(R.drawable.i_voltar, onPrev)
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(monthTitle(month), serif(17, 500, 22), align = TextAlign.Center)
-            Text(sub.uppercase(), sans(12f, 500, 16f, 0.04f), color = Margem.colors.inkTertiary, align = TextAlign.Center)
-        }
-        IconButton(R.drawable.i_avancar, onNext, dim = !canNext, enabled = canNext)
+fun MonthPicker(
+    month: YearMonth, sub: String, onPrev: () -> Unit, onNext: () -> Unit, modifier: Modifier = Modifier,
+    canNext: Boolean = true, canPrev: Boolean = true, tag: String = "",
+) = Row(modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+    IconButton(R.drawable.i_voltar, onPrev, Modifier.testTag("$tag.prev"), dim = !canPrev, enabled = canPrev)
+    Column(Modifier.weight(1f).testTag("$tag.label").semantics(mergeDescendants = true) {}, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(monthTitle(month), serif(17, 500, 22), align = TextAlign.Center)
+        Text(sub.uppercase(), sans(12f, 500, 16f, 0.04f), color = Margem.colors.inkTertiary, align = TextAlign.Center)
     }
+    IconButton(R.drawable.i_avancar, onNext, Modifier.testTag("$tag.next"), dim = !canNext, enabled = canNext)
+}
 
 /** "1–4", "26–31": the days of a week cut to the month. */
 fun weekRange(w: Week) = "${w.start.day}–${w.end.day}"
@@ -697,19 +704,18 @@ fun stepValue(c: Cents) = if (c.v % 100 == 0L) moneyParts(c).first else moneyPla
 
 /**
  * Book §8.6/10.8, the weekly steps editor: one cell per week; this week highlighted with an ink rule;
- * the last non-edited week is automatic (ink 3, not editable: it absorbs the difference). Tapping
- * another week calls [onEdit]; edited weeks are marked with argila.
+ * the locked week (the only one left automatic, spec §4) in ink 3 and not editable. Tapping another
+ * week calls [onEdit]; edited weeks are marked with argila. [tag]: each cell is "$tag${week.start}" (D35).
  */
 @Composable
-fun StepsEditor(weeks: List<Week>, today: LocalDate, onEdit: (Week) -> Unit, modifier: Modifier = Modifier) {
+fun StepsEditor(weeks: List<Week>, today: LocalDate, onEdit: (Week) -> Unit, modifier: Modifier = Modifier, tag: String = "") {
     val c = Margem.colors
-    val automatic = weeks.lastOrNull { !it.edited }
     Row(modifier.fillMaxWidth().drawBehind { drawLine(c.rule, Offset(0f, size.height - 0.5f), Offset(size.width, size.height - 0.5f), 1.dp.toPx()) }) {
         for (w in weeks) {
             val current = today >= w.start && today <= w.end
-            val auto = w == automatic
+            val auto = w.locked
             Column(
-                Modifier.weight(1f).heightIn(min = 48.dp)
+                Modifier.weight(1f).heightIn(min = 48.dp).testTag("$tag${w.start}")
                     .clickable(enabled = !auto, role = Role.Button) { onEdit(w) }
                     .then(if (current) Modifier.background(c.surfaceSunken).drawBehind { drawRect(c.ink, Offset(0f, size.height - 2.dp.toPx()), Size(size.width, 2.dp.toPx())) } else Modifier)
                     .padding(start = 2.dp, end = 2.dp, top = 6.dp, bottom = 7.dp),
@@ -786,16 +792,18 @@ fun TabBar(selected: Tab, onSelect: (Tab) -> Unit, modifier: Modifier = Modifier
 
 /**
  * Book §8.7 selector: a few short options side by side; the active one in ink 700 with a 2 dp rule
- * below. "Ordenar" in Verbas, theme and widget order in Ajustes.
+ * below, and `selected`. "Ordenar" in Verbas, theme and widget order in Ajustes. [tag]: each option is
+ * "$tag" + its value in lowercase (D35).
  */
 @Composable
-fun <T> OptionPicker(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier) {
+fun <T> OptionPicker(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit, modifier: Modifier = Modifier, tag: String = "") {
     val c = Margem.colors
     Row(modifier.fillMaxWidth().drawBehind { drawLine(c.rule, Offset(0f, size.height - 0.5f), Offset(size.width, size.height - 0.5f), 1.dp.toPx()) }) {
         for ((value, label) in options) {
             val on = value == selected
             Box(
-                Modifier.weight(1f).heightIn(min = 48.dp).clickable(role = Role.RadioButton) { onSelect(value) }
+                Modifier.weight(1f).heightIn(min = 48.dp).testTag("$tag${value.toString().lowercase()}")
+                    .semantics { this.selected = on }.clickable(role = Role.RadioButton) { onSelect(value) }
                     .drawBehind { if (on) drawRect(c.ink, Offset(size.width * 0.14f, size.height - 1.dp.toPx()), Size(size.width * 0.72f, 2.dp.toPx())) }
                     .padding(horizontal = 6.dp),
                 contentAlignment = Alignment.Center,
@@ -903,29 +911,32 @@ fun CapturePaused(onReconnect: () -> Unit, modifier: Modifier = Modifier, onManu
  * Folha, radius 8, shadow, title in Newsreader 22, actions as text buttons; [destructive] in lacre.
  */
 @Composable
-fun MargemDialog(title: String, text: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit, destructive: Boolean = true) {
+fun MargemDialog(title: String, text: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit, destructive: Boolean = true, tag: String = "") {
     Dialog(onDismiss, DialogProperties(usePlatformDefaultWidth = false)) {
         val c = Margem.colors
         (LocalView.current.parent as? DialogWindowProvider)?.window?.setDimAmount(if (c.isDark) 0.6f else 0.45f)
-        DialogCard(title, text, confirm, onConfirm, onDismiss, destructive)
+        DialogCard(title, text, confirm, onConfirm, onDismiss, destructive, tag = tag)
     }
 }
 
-/** The dialog's sheet, also drawn inline by the catalog. */
+/** The dialog's sheet, also drawn inline by the catalog. [tag]: the sheet, "$tag.confirm", "$tag.cancel" (D35). */
 @Composable
-fun DialogCard(title: String, text: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit, destructive: Boolean = true, modifier: Modifier = Modifier) {
+fun DialogCard(
+    title: String, text: String, confirm: String, onConfirm: () -> Unit, onDismiss: () -> Unit, destructive: Boolean = true,
+    modifier: Modifier = Modifier, tag: String = "",
+) {
     val c = Margem.colors
     val shape = RoundedCornerShape(8.dp)
     Column(
-        modifier.padding(horizontal = 32.dp).widthIn(max = 340.dp).fillMaxWidth()
+        modifier.testTag(tag).semantics(mergeDescendants = true) {}.padding(horizontal = 32.dp).widthIn(max = 340.dp).fillMaxWidth()
             .shadow(14.dp, shape, ambientColor = c.shadow, spotColor = c.shadow).background(c.surface, shape)
             .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 12.dp),
     ) {
         Text(title, serif(22, 500, 28))
         Text(text, sans(15f, 400, 22.5f), Modifier.padding(top = 8.dp), c.inkSecondary)
         Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) {
-            Button("Cancelar", onDismiss, kind = ButtonKind.TEXT)
-            Button(confirm, onConfirm, kind = ButtonKind.TEXT, color = if (destructive) c.overrun else Color.Unspecified)
+            Button("Cancelar", onDismiss, Modifier.testTag("$tag.cancel"), kind = ButtonKind.TEXT)
+            Button(confirm, onConfirm, Modifier.testTag("$tag.confirm"), kind = ButtonKind.TEXT, color = if (destructive) c.overrun else Color.Unspecified)
         }
     }
 }

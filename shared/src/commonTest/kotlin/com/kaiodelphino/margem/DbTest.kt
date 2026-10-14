@@ -321,6 +321,104 @@ class DbTest {
     }
 
     @Test
+    fun `weeks say how much they take and which one is locked and edits can go back to automatic`() = runTest {
+        val budget = setUp()
+        val oct = YearMonth(2026, 10)
+        suspend fun weeks() = db.budgetDetail(budget, oct, OCT_6).month.weeks
+        // Oct 2026 from Monday: 1–4 (4 days), 5–11, 12–18, 19–25 (7), 26–31 (6). R$ 600 by days, rounded
+        // down: 600 × 4/31 = 77,41; 600 × 7/31 = 135,48; the last one takes the rest: 116,15 (spec §4).
+        val default = listOf(7741L, 13548, 13548, 13548, 11615)
+        assertEquals(default, weeks().map { it.step.v })
+        assertTrue(weeks().all { it.max.v == 60000L && !it.locked })
+
+        val start = weeks().map { it.start }
+        assertTrue(db.setStep(budget, oct, start[1], Cents(20000)))
+        assertEquals(listOf(40000L, 60000, 40000, 40000, 40000), weeks().map { it.max.v }) // 600 − 200 for the others
+        assertFalse(db.setStep(budget, oct, start[2], Cents(40001)))
+        assertTrue(db.setStep(budget, oct, start[2], Cents(10000)))
+        assertTrue(db.setStep(budget, oct, start[3], Cents(10000)))
+        assertTrue(db.setStep(budget, oct, start[0], Cents(10000)))
+        assertEquals(listOf(false, false, false, false, true), weeks().map { it.locked })
+        assertEquals(Cents(0), weeks()[4].max)
+        assertEquals(Cents(30000), weeks()[1].max) // 600 − 100 − 100 − 100
+
+        val v = db.version.value
+        assertTrue(db.clearStep(budget, oct, start[2]))
+        assertEquals(v + 1, db.version.value)
+        assertTrue(weeks().none { it.locked })
+        assertFalse(weeks()[2].edited)
+        assertFalse(db.clearStep(budget, oct, start[2])) // no longer edited
+        assertFalse(db.clearStep(budget, oct, LocalDate(2026, 10, 6))) // not a week start
+        assertFalse(db.clearStep(budget, YearMonth(2026, 11), start[1])) // not a week of November
+        assertFalse(db.clearStep(BudgetId(99), oct, start[1]))
+        assertEquals(v + 1, db.version.value)
+        for (w in listOf(0, 1, 3)) assertTrue(db.clearStep(budget, oct, start[w]))
+        assertEquals(default, weeks().map { it.step.v })
+    }
+
+    @Test
+    fun `limitDropsEdits says beforehand what setLimit deletes`() = runTest {
+        val budget = setUp()
+        val oct = YearMonth(2026, 10)
+        db.ensureMonths(YearMonth(2026, 11))
+        assertTrue(db.setStep(budget, oct, LocalDate(2026, 10, 5), Cents(20000)))
+        assertTrue(db.setStep(budget, YearMonth(2026, 11), LocalDate(2026, 11, 2), Cents(25000)))
+
+        val v = db.version.value
+        assertFalse(db.limitDropsEdits(budget, Cents(25000), OCT_6)) // each month's edits fit
+        assertTrue(db.limitDropsEdits(budget, Cents(24999), OCT_6)) // November's don't
+        assertFalse(db.limitDropsEdits(budget, Cents(0), OCT_6))
+        assertFalse(db.limitDropsEdits(BudgetId(99), Cents(1), OCT_6))
+        // From December on there are no edits: nothing to drop.
+        assertFalse(db.limitDropsEdits(budget, Cents(1), LocalDate(2026, 12, 1)))
+        assertEquals(v, db.version.value)
+
+        assertTrue(db.setLimit(budget, Cents(24999), OCT_6))
+        assertTrue(db.budgetDetail(budget, oct, OCT_6).month.weeks.any { it.edited })
+        assertTrue(db.budgetDetail(budget, YearMonth(2026, 11), OCT_6).month.weeks.none { it.edited })
+    }
+
+    @Test
+    fun `previewBudget is the month a budget created today would have`() = runTest {
+        val oct9 = LocalDate(2026, 10, 9)
+        val preview = db.previewBudget(Cents(31000), oct9)
+        // Book 10.7: R$ 310 in October → 40 · 70 · 70 · 70 · 60; ideal on the 9th = 40 + 70 × 5/7 = 90.
+        assertEquals(listOf(4000L, 7000, 7000, 7000, 6000), preview.weeks.map { it.step.v })
+        assertEquals(Cents(9000), preview.ideal)
+        assertEquals(Cents(0), preview.spent)
+        assertEquals(0L, db.version.value)
+        assertEquals(BudgetMonth(), db.previewBudget(Cents(0), oct9))
+
+        val id = db.createBudget("Presentes", Cents(31000), oct9)
+        assertEquals(preview, db.budgetDetail(id, YearMonth(2026, 10), oct9).month)
+    }
+
+    @Test
+    fun `the detail lists each transaction once with the installment of the month`() = runTest {
+        db.addSource(NUBANK, "Nu", 0)
+        val budget = db.createBudget("Casa", Cents(100000), LocalDate(2026, 8, 3))
+        db.ensureMonths(YearMonth(2026, 10))
+        val sofa = db.addManual(TransactionForm(budget, listOf("móveis"), Cents(120005), 10, "Movelaria Real", LocalDate(2026, 8, 15), LocalTime(10, 0)))
+        val lamp = db.addManual(TransactionForm(budget, listOf("casa"), Cents(4500), 1, "Luz & Cia", LocalDate(2026, 10, 2), LocalTime(9, 0)))
+        val uber = db.addManual(TransactionForm(budget, listOf("casa"), Cents(994), 1, "DL *UberRides", LocalDate(2026, 10, 20), LocalTime(9, 0)))
+        assertTrue(db.registerRefund(post(nu(UBER_REFUND)), uber))
+
+        val oct = db.budgetDetail(budget, YearMonth(2026, 10), LocalDate(2026, 10, 25))
+        assertEquals(YearMonth(2026, 8), oct.firstMonth)
+        // Oldest first by installment date: lamp (Oct 2), sofa's 3rd of 10 (Oct 15), the refunded Uber (Oct 20).
+        assertEquals(listOf(lamp, sofa, uber), oct.lines.map { it.row.id })
+        assertEquals(listOf(1, 3, 1), oct.lines.map { it.k })
+        assertEquals(LocalDate(2026, 10, 15), oct.lines[1].date)
+        assertEquals(listOf(4500L, 12000, 994), oct.lines.map { it.cents.v })
+        assertTrue(oct.lines[2].row.refunded)
+        assertEquals(Cents(16500), oct.month.spent) // the refunded one doesn't count
+        // The last installment absorbs the cents: 1.200,05 − 9 × 120,00 = 120,05 (spec §6).
+        val may = db.budgetDetail(budget, YearMonth(2027, 5), LocalDate(2026, 10, 25))
+        assertEquals(listOf(10 to 12005L), may.lines.map { it.k to it.cents.v })
+        assertEquals(NO_MONTH, db.budgetDetail(BudgetId(99), YearMonth(2026, 10), LocalDate(2026, 10, 25)).firstMonth)
+    }
+
+    @Test
     fun `changing the start days drops step edits from the current month on`() = runTest {
         db.addSource(NUBANK, "Nu", 0)
         val budget = db.createBudget("Mercado", Cents(60000), LocalDate(2026, 8, 1))

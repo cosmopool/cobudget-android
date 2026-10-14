@@ -55,7 +55,7 @@ fun Inbox(db: Db, granted: Boolean, snack: SnackHost, go: (Screen) -> Unit) {
             withContext(NonCancellable) { db.markPautaSeen(openedAt) }
         }
     }
-    val today = today()
+    val today = LocalToday.current()
     val zone = TimeZone.currentSystemDefault()
     Column {
         TopBar("Pauta")
