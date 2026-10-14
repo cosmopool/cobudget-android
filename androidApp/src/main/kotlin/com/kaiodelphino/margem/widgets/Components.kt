@@ -48,7 +48,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
@@ -64,7 +63,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -89,7 +87,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -366,48 +363,19 @@ private class CentsTransformation(val ink: Color, val dim: Color) : androidx.com
                 withStyle(SpanStyle(color = ink)) { append(",$cts") }
             }
         }
-        return TransformedText(shown, TypedDigits(shown.text, digits.length))
+        return withTypedTail(shown, digits.length)
     }
 }
 
 /**
- * The typed digits sit right-aligned in [shown], after padding and separators: an offset keeps its count of
- * digits to the right, so the keyboard's composition lands on real characters. A tap anywhere puts the cursor
- * at the end, where the next digit goes.
+ * The typed digits map onto zero-width spaces after [shown]: the keyboard's composition (kept, see [MoneyField])
+ * lands on them, so Compose's composition underline is zero wide and the cursor anchor finds real characters.
+ * A tap anywhere puts the cursor at the end, where the next digit goes.
  */
-private class TypedDigits(val shown: String, val typed: Int) : OffsetMapping {
-    override fun originalToTransformed(offset: Int): Int {
-        var right = typed - offset
-        var i = shown.length
-        while (right > 0) if (shown[--i].isDigit()) right--
-        return i
-    }
-
+private fun withTypedTail(shown: AnnotatedString, typed: Int) = TransformedText(shown + AnnotatedString("\u200B".repeat(typed)), object : OffsetMapping {
+    override fun originalToTransformed(offset: Int) = shown.length + offset
     override fun transformedToOriginal(offset: Int) = typed
-}
-
-/**
- * The money and time fields draw their own text transparent: with it goes the underline Compose puts under
- * the keyboard's composition, which the book doesn't have. [shown] is drawn over [inner] in the same [style]
- * (keep both in step, or the cursor drifts off the digits). Wider than the field, it ends where the field's
- * scrolled text ends, with the cursor in view.
- */
-@Composable
-private fun DigitsOver(inner: @Composable () -> Unit, shown: AnnotatedString, style: TextStyle, modifier: Modifier = Modifier) {
-    Box(modifier) {
-        inner()
-        BasicText(
-            shown,
-            Modifier.matchParentSize().clipToBounds().layout { m, c ->
-                val p = m.measure(c.copy(minWidth = 0, maxWidth = Constraints.Infinity, minHeight = 0))
-                // Scrolled, the field leaves room for the cursor (2 dp) after the text.
-                val end = c.maxWidth - 2.dp.roundToPx()
-                layout(c.maxWidth, c.maxHeight) { p.place(if (p.width <= c.maxWidth) 0 else end - p.width, 0) }
-            },
-            style, maxLines = 1, softWrap = false,
-        )
-    }
-}
+})
 
 /**
  * Book §8.2 money field: "R$" in the sans, the value in Newsreader [size] sp, filled from the cents.
@@ -438,10 +406,10 @@ fun MoneyField(
                 onChange(Cents(clean.ifEmpty { "0" }.toLong()))
             },
             Modifier.fillMaxWidth().then(if (tag.isEmpty()) Modifier else Modifier.testTag(tag)),
-            textStyle = serif(size, 400, size + 6, tabular = true).copy(color = Color.Transparent),
+            textStyle = serif(size, 400, size + 6, tabular = true).copy(color = c.ink),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true, interactionSource = interaction, cursorBrush = SolidColor(c.info),
-            visualTransformation = CentsTransformation(Color.Transparent, Color.Transparent),
+            visualTransformation = CentsTransformation(c.inkSecondary, c.inkTertiary),
             decorationBox = { inner ->
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = (size + 22).dp).padding(top = 10.dp).fieldLine(isFocused, error.isNotEmpty(), true, c),
@@ -449,10 +417,7 @@ fun MoneyField(
                 ) {
                     // Book `.fld.money .in{align-items:baseline}`: "R$" sits on the value's baseline.
                     Text("R$", sans(17f, 500, 20f), Modifier.alignByBaseline().padding(end = 10.dp), color = c.inkSecondary)
-                    DigitsOver(
-                        inner, CentsTransformation(c.inkSecondary, c.inkTertiary).filter(AnnotatedString(digits)).text,
-                        serif(size, 400, size + 6, tabular = true).copy(color = c.ink), Modifier.alignByBaseline(),
-                    )
+                    Box(Modifier.alignByBaseline()) { inner() }
                 }
             },
         )
@@ -1240,7 +1205,7 @@ private class TimeTransformation(val dim: Color) : androidx.compose.ui.text.inpu
                 if (dimmed) withStyle(SpanStyle(color = dim)) { append(ch) } else append(ch)
             }
         }
-        return TransformedText(shown, TypedDigits(shown.text, text.text.length))
+        return withTypedTail(shown, text.text.length)
     }
 }
 
@@ -1261,14 +1226,12 @@ private fun TimeField(digits: String, onChange: (String) -> Unit, error: Boolean
                 onChange(clean)
             },
             Modifier.fillMaxWidth().testTag(DateTimeTags.TIME),
-            textStyle = serif(19, 400, 24, tabular = true).copy(color = Color.Transparent),
+            textStyle = serif(19, 400, 24, tabular = true).copy(color = c.ink),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true, interactionSource = interaction, cursorBrush = SolidColor(c.info),
-            visualTransformation = TimeTransformation(Color.Transparent),
+            visualTransformation = TimeTransformation(c.inkTertiary),
             decorationBox = { inner ->
-                Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).fieldLine(focused, error, true, c), contentAlignment = Alignment.CenterStart) {
-                    DigitsOver(inner, TimeTransformation(c.inkTertiary).filter(AnnotatedString(digits)).text, serif(19, 400, 24, tabular = true).copy(color = c.ink))
-                }
+                Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).fieldLine(focused, error, true, c), contentAlignment = Alignment.CenterStart) { inner() }
             },
         )
         FieldHint("", if (error) "A hora vai de 00:00 a 23:59." else "", DateTimeTags.TIME)
