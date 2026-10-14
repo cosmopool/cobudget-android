@@ -1,6 +1,6 @@
 # Margem — spec do produto
 
-Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (bloco 4, ciclo do recado: §2.5, §2.8, §2.10, §7.3, §7.4; bloco 5, Ajustes e importação: §4, §7.6). O que está em §10 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (bloco 4, ciclo do recado: §2.5, §2.8, §2.10, §7.3, §7.4; bloco 5, Ajustes e importação: §4, §7.6; teto: §3, §7.1, §10). O que está em §10 espera resposta, uma por vez.
 Escopo: só produto (o quê e por quê). Implementação: [architecture.md](architecture.md).
 Vocabulário: [glossary.md](glossary.md). Identidade visual: [design_system.html](design_system.html).
 
@@ -37,7 +37,10 @@ O estorno não é crédito: é só o registro de que uma compra não conta (§6)
   Vai do dia D até a véspera do dia D do mês seguinte. Se D não existe no mês (29–31), usa o último dia.
 - **Mudar a cota** vale do **mês atual em diante**. Cada mês guarda a cota que valia nele; a Leitura compara cada mês com a sua.
 - **Virada**: a cota recomeça inteira todo mês. Sobra e excesso não passam para o mês seguinte; ficam só no histórico.
-- **Não há total geral**: cada verba vale por si. Não existe limite do mês acima das verbas.
+- **Teto** (opcional; sem teto por padrão): valor máximo para a **soma das cotas** do mês (ex.: a renda). É limite de planejamento, não de gasto: o gasto continua medido por verba, e não existe margem, ritmo ou estado do total.
+  - **Passar do teto é permitido**: criar verba ou mudar cota que deixa a soma das cotas do mês atual acima do teto avisa enquanto digita (texto sob o campo) e de novo ao salvar (diálogo), e grava se a pessoa confirmar.
+  - **Mudar o teto** pergunta ao salvar: **só este mês** (no mês seguinte volta o padrão) ou **deste mês em diante** (vira o padrão dos próximos meses). A pessoa pode tirar o teto.
+  - Aparece só no cabeçalho de Verbas (§7.1) e nos avisos de cota; widget e Leitura não mostram o teto.
 - **Verba criada no meio do mês** tem a cota cheia no mês inteiro (o ritmo ideal de hoje já conta as semanas passadas).
 - **Apagar uma verba** apaga os lançamentos dela; os recados voltam à Pauta.
 - **Margem** = cota − gasto do mês.
@@ -100,6 +103,7 @@ Cinco abas: **Verbas** (início) · **Pauta** · **Lançamentos** · **Leitura**
 
 ### 7.1 Verbas
 - Lista das verbas do mês atual: nome, régua (gasto, marca do ritmo ideal, cota), margem, estado.
+- **Cabeçalho com o teto** (§3): soma das cotas do mês atual contra o teto; tocar edita o teto. Desenho em aberto (§10).
 - **Ordenar**: seletor no topo — **risco** (padrão; mesma regra do widget, §8.1) · **manual** (arrastar) · **A–Z**. A escolha é lembrada.
 - Criar verba: nome + cota mensal, com a prévia dos passos semanais do mês atual.
 - **Detalhe da verba**: seletor de mês (do primeiro mês da verba até o atual); régua; passos semanais (editáveis, com "Voltar ao automático", §4); lançamentos do mês com a soma corrida e a marca "cota atingida aqui" (parcelada conta a parcela do mês; estornada aparece riscada e não soma); editar nome e cota; apagar.
@@ -178,4 +182,4 @@ Tocar em qualquer ponto abre a aba correspondente (Verbas ou Pauta).
 
 | # | Questão |
 |---|---|
-| — | Nenhuma no momento. |
+| S1 | Desenho do cabeçalho de Verbas com o teto (§7.1): sem teto, abaixo, no teto, acima e a edição. Três propostas: [A, tipográfico](mockups/teto-a-tipografia.html) · [B, régua do teto](mockups/teto-b-regua.html) · [C, manchete](mockups/teto-c-manchete.html). Recomendação: **B**, o único em que o teto mostra para onde vão as cotas (§1); A é um número sem proporção, C põe um dado de planejamento no lugar da notícia do dia. |

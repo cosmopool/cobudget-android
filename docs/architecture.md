@@ -1,6 +1,6 @@
 # Margem — arquitetura
 
-Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33; bloco 2 do `androidApp`, D1, D16, D23, D28, D33, §7; bloco 3, Verbas, D34–D35, §5–§7, §10; bloco 4, ciclo do recado, D36–D38, §4, §7, §9, §10; bloco 5, Ajustes e importação, D3, D4, D14, D40–D41, §2, §7, §9, §10). O que está em §11 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33; bloco 2 do `androidApp`, D1, D16, D23, D28, D33, §7; bloco 3, Verbas, D34–D35, §5–§7, §10; bloco 4, ciclo do recado, D36–D38, §4, §7, §9, §10; bloco 5, Ajustes e importação, D3, D4, D14, D40–D41, §2, §7, §9, §10; teto, D42, §4, §5). O que está em §11 espera resposta, uma por vez.
 Produto: [spec.md](spec.md). Vocabulário: [glossary.md](glossary.md). Visual: [design_system.html](design_system.html).
 Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o miolo, testes de integração.
 
@@ -48,6 +48,7 @@ Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o
 | D39 | **Build de debug é o Margem-Dev**: applicationId com sufixo `.dev` (`com.kaiodelphino.margem.dev`) e nome `Margem-Dev` (`src/debug/res`), assinado pela chave de debug do repo. O build de release, `com.kaiodelphino.margem`, é assinado pela chave de release, fora do repo (caminho e senhas em `local.properties`). | Os dois convivem no mesmo celular, cada um com seus dados e seu acesso às notificações; um APK assinado com a chave de debug, que é pública, nunca substitui o app de verdade. |
 | D40 | **Importador do cobudget no `shared`**: `importCobudget(db, path): CobudgetImport`, público, em `Capture.kt` ao lado do dedupe. Lê o `.db` antigo numa conexão própria do mesmo driver (`Db.driver` vira `internal`) e grava tudo numa **escrita só** (um incremento de `version`, um `onWrite`). Devolve quantos entraram pendentes, quantos riscados e quantos ficaram de fora (repetidos ou sem texto); `opened = false` quando o arquivo é recusado. Sem mudança no schema do Margem (v1). O `androidApp` só copia o arquivo do SAF para um caminho local (`Backup.kt`); some o `Import.kt`. Decidido no bloco 5. | Uma transação: milhares de recados não viram milhares de escritas e de `updateAll` nos widgets. Testado na JVM com SQLite real (D23), como o resto do `Db`. |
 | D41 | **Aviso do início do mês e da semana só quando apaga algo**: `startDropsEdits(monthStartDay, weekStart, today)` diz se `setMonthStartDay(monthStartDay)` seguido de `setWeekStart(weekStart)` apagaria alguma edição de passo (mesmo corte das duas, D10), sem gravar. A tela de Ajustes junta os dois num rascunho e grava os dois no Salvar. Decidido no bloco 5. | Mesma regra do aviso de cota (`limitDropsEdits`): sem aviso quando nada é apagado. O rascunho evita uma escrita (e um aviso) por toque no stepper. |
+| D42 | **Teto: uma linha por mês** em `ceiling_months`, criada sob demanda pelo `ensureMonths` (D30) copiando o **padrão** (`settings.ceiling`), não o mês anterior; meses pulados também recebem o padrão. `0` = sem teto (zero é inicialização). "Só este mês" grava só a linha do mês atual; "deste mês em diante" grava o padrão e a linha do mês atual e apaga as linhas de meses depois dele. Migração v2. | Cada mês guarda o teto que valia nele, como a cota (D8): a Leitura pode mostrá-lo depois sem migrar de novo. Copiar o padrão, e não o mês anterior, é o que faz o "só este mês" não vazar para o mês seguinte. |
 | D33 | **Encerrada no bloco 2**: `app/` (cobudget) ficou no build até o bloco do `androidApp` e foi removido no começo dele; o build é `:shared` + `:androidApp`. O que ainda serve de base (listener, `loadLauncherApps`, casos do `CaptureTest`) é lido do histórico (`git show 7616cd2:app/...`). | O cobudget não será mais usado. A importação do backup `.db` dele (D3, D4) continua e não depende do código de `app/`. |
 
 ## 2. Componentes
@@ -122,6 +123,9 @@ CREATE TABLE budgets(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL CO
 CREATE TABLE budget_months(budget_id INTEGER NOT NULL, month TEXT NOT NULL, limit_cents INTEGER NOT NULL,
   PRIMARY KEY(budget_id, month));
 
+-- Teto de cada mês (D42): soma máxima das cotas; 0 = sem teto. Padrão em settings.ceiling.
+CREATE TABLE ceiling_months(month TEXT PRIMARY KEY, cents INTEGER NOT NULL);
+
 -- Passos editados (D9).
 CREATE TABLE week_steps(budget_id INTEGER NOT NULL, week_start TEXT NOT NULL, cents INTEGER NOT NULL,
   PRIMARY KEY(budget_id, week_start));
@@ -163,6 +167,7 @@ CREATE TABLE merchant_aliases(merchant_key TEXT PRIMARY KEY, alias TEXT NOT NULL
 - **Voltar ao automático** (`clearStep`): apaga a linha de `week_steps` da semana; a semana volta a dividir o que sobra com as outras automáticas.
 - **Semana travada** (`Week.locked`): a única semana não editada do mês; `setStep` a recusa. Num mês sem linha de cota (antes do primeiro mês da verba), todas as semanas são travadas (decidido na triagem do bloco 5). `Week.max` = cota − Σ outras editadas (0 na travada): é o que `setStep` aceita.
 - **Aviso de cota** (`limitDropsEdits`): mesma regra do `setLimit` (algum mês, do atual em diante, com Σ editadas > cota nova), sem gravar; a tela pergunta antes de chamar `setLimit`.
+- **Teto** (D42): compara a soma de `budget_months.limit_cents` do mês com `ceiling_months.cents` do mês; só informa, nunca recusa escrita (spec §3).
 - **Estado "novo" do recado**: `posted_at > settings.pauta_seen_at`; abrir a Pauta atualiza `pauta_seen_at`.
 
 ## 6. Cálculo do mês

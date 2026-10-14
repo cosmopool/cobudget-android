@@ -29,9 +29,10 @@ Vocabulário do app, alinhado ao [spec](spec.md). Fonte visual: [design_system.h
 | Registrar estorno | `registerRefund()` | Ação no recado de estorno, no lugar de Lançar: escolher a compra estornada. | Botão “Registrar estorno”. | lançar estorno, reembolsar |
 | Estorno | `Refund` | Não é lançamento: registro de que uma compra não é somada na verba nem na Leitura (parcelada: todas as parcelas). Registrar = escolher a compra: um lançamento, ou um recado ainda não lançado. Pode ser desfeito (Desfazer na hora, ou Desfazer estorno na compra). Não pede verba nem marcador. | “Estorno · a compra de 2 out não conta mais” | reembolso, crédito, cashback, valor negativo |
 | Verba | `Budget` | Limite de gasto criado pela pessoa: nome + cota mensal. Cada lançamento pertence a exatamente uma verba. | “Nova verba”, “Verba Mercado”. | orçamento, envelope, categoria, pote |
-| Cota | `MonthlyLimit` | Quanto a verba permite gastar no mês. Mudar vale do mês atual em diante; cada mês guarda a sua. | “Cota de R$ 600,00 por mês.” | meta, teto, limite (na interface) |
+| Cota | `MonthlyLimit` | Quanto a verba permite gastar no mês. Mudar vale do mês atual em diante; cada mês guarda a sua. | “Cota de R$ 600,00 por mês.” | meta, limite (na interface); teto é outra coisa |
 | Mês | `BudgetMonth` | Janela da cota: do dia de início do mês (Ajustes, igual para todas as verbas) até a véspera dele no mês seguinte. | “Mês de 5 out a 4 nov.” | período, ciclo, competência |
 | Virada | `MonthRollover` | Início de um novo mês; a cota recomeça inteira, sem levar sobra nem excesso. | “O mês recomeça no dia 5.” | reset, zerar, renovação |
+| Teto | `Ceiling` | Valor máximo, opcional, para a soma das cotas do mês. Limite de planejamento, não de gasto; passar dele é permitido, com aviso. Mudar pergunta: só este mês ou deste mês em diante. | “R$ 300,00 além do teto.” | renda, orçamento total, limite geral |
 | Margem | `Remaining` | Cota − gasto do mês. É a métrica que dá nome ao app. | “Margem: R$ 163,80.” · “Sobram R$ 273,70.” | saldo, disponível, restante |
 | Ritmo | `Pace` | Comparação entre o gasto do mês e o ritmo ideal. | Marca vertical na régua; “No ritmo”. | velocidade, burn rate, meta diária |
 | No ritmo | `PaceStatus.ON_PACE` | Gasto até o ritmo ideal, sem tolerância. | “No ritmo · margem R$ 58,80” | ok, verde, saudável, parabéns |

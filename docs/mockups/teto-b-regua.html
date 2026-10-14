@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Régua do Teto</title>
+<meta name="description" content="Proposta B para o teto das cotas na aba Verbas do Margem: a régua do teto.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&family=Source+Sans+3:ital,wght@0,300..800;1,400..600&display=swap" rel="stylesheet">
+<style>
+:root, .t-light{
+  color-scheme:light;
+  --papel:#F3EEE4; --folha:#FBF8F1; --folha-2:#ECE5D8;
+  --fio:#DDD3C2; --fio-forte:#8A7E6A;
+  --tinta:#1E1B16; --tinta-2:#514A40; --tinta-3:#6B6254;
+  --argila:#A44D29;
+  --musgo:#3E5E38; --musgo-fundo:#E3EADB;
+  --ocre:#85590F;  --ocre-fundo:#F4E7CC;
+  --lacre:#9A2A20; --lacre-fundo:#F6E3DC;
+  --anil:#2D4C6E;  --anil-fundo:#DFE6EE;
+  --acao:#1E1B16; --sobre-acao:#FBF8F1; --acao-press:#3A352D;
+  --snack-acao:#E09470;
+  --scrim:rgba(30,27,22,.45);
+  --sombra:0 1px 2px rgba(30,27,22,.06),0 12px 30px -12px rgba(30,27,22,.28);
+  --c1:#2F5FA8; --c2:#D0682E; --c3:#139488; --c4:#7E2F78; --c5:#B8860B; --c6:#C25C7E; --c0:#8C8270;
+  --s0:#F1E4D6; --s1:#E3C3A6; --s2:#CF9871; --s3:#B46A43; --s4:#8A4422;
+  --parede:radial-gradient(120% 70% at 85% 8%,#E8D9BF 0%,transparent 60%),radial-gradient(90% 60% at 0% 100%,#C9CFB4 0%,transparent 65%),linear-gradient(165deg,#E4E2D2 0%,#EDE4D2 50%,#D9C6AA 100%);
+  --wg-fundo:rgba(251,248,241,.94);
+}
+:root[data-theme="dark"], .t-dark{
+  color-scheme:dark;
+  --papel:#171512; --folha:#201D19; --folha-2:#2A2621;
+  --fio:#36312A; --fio-forte:#7C7262;
+  --tinta:#EEE7DA; --tinta-2:#BDB3A3; --tinta-3:#988E7F;
+  --argila:#E09470;
+  --musgo:#A3C092; --musgo-fundo:#24301F;
+  --ocre:#DDB063;  --ocre-fundo:#382C17;
+  --lacre:#EE937E; --lacre-fundo:#3A221C;
+  --anil:#A3BCDB;  --anil-fundo:#1F2A36;
+  --acao:#EEE7DA; --sobre-acao:#171512; --acao-press:#CFC6B6;
+  --snack-acao:#A44D29;
+  --scrim:rgba(0,0,0,.6);
+  --sombra:0 1px 0 rgba(0,0,0,.35),0 14px 34px -10px rgba(0,0,0,.7);
+  --c1:#5584D0; --c2:#D06A30; --c3:#20A898; --c4:#8E4A8A; --c5:#B98A14; --c6:#CC6487; --c0:#7A7163;
+  --s0:#2B231E; --s1:#4E3324; --s2:#7E4A2E; --s3:#B66C44; --s4:#E6A27C;
+  --parede:radial-gradient(110% 70% at 90% 0%,#2E3A2C 0%,transparent 60%),radial-gradient(90% 60% at 0% 100%,#3A2618 0%,transparent 60%),linear-gradient(165deg,#1B211B 0%,#13120F 55%,#211913 100%);
+  --wg-fundo:rgba(32,29,25,.94);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme]){
+    color-scheme:dark;
+    --papel:#171512; --folha:#201D19; --folha-2:#2A2621; --fio:#36312A; --fio-forte:#7C7262;
+    --tinta:#EEE7DA; --tinta-2:#BDB3A3; --tinta-3:#988E7F; --argila:#E09470;
+    --musgo:#A3C092; --musgo-fundo:#24301F; --ocre:#DDB063; --ocre-fundo:#382C17;
+    --lacre:#EE937E; --lacre-fundo:#3A221C; --anil:#A3BCDB; --anil-fundo:#1F2A36;
+    --acao:#EEE7DA; --sobre-acao:#171512; --acao-press:#CFC6B6; --snack-acao:#A44D29;
+    --c1:#5584D0; --c2:#D06A30; --c3:#20A898; --c4:#8E4A8A; --c5:#B98A14; --c6:#CC6487; --c0:#7A7163;
+    --s0:#2B231E; --s1:#4E3324; --s2:#7E4A2E; --s3:#B66C44; --s4:#E6A27C;
+  }
+}
+
+/* =========================================================
+   BASE
+   ========================================================= */
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{background:var(--papel);color:var(--tinta);font:400 17px/1.6 'Source Sans 3',system-ui,sans-serif;font-optical-sizing:auto;transition:background-color .32s cubic-bezier(.45,0,.2,1),color .32s cubic-bezier(.45,0,.2,1);overflow-x:hidden}
+.serif,h1,h2,h3,h4{font-family:'Newsreader',Georgia,serif;font-weight:400}
+.num{font-variant-numeric:lining-nums tabular-nums;font-feature-settings:"lnum","tnum"}
+.onum{font-variant-numeric:oldstyle-nums proportional-nums}
+em,.it{font-style:italic}
+a{color:var(--anil);text-underline-offset:3px;text-decoration-thickness:1px}
+svg{display:block}
+.ico{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ico.s20{width:20px;height:20px}.ico.s18{width:18px;height:18px}.ico.s16{width:16px;height:16px}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* =========================================================
+   LIVRO — diagramação editorial
+   ========================================================= */
+body::before{content:"";position:fixed;left:30px;top:0;bottom:0;width:5px;border-left:1px solid var(--argila);border-right:1px solid var(--argila);opacity:.55;pointer-events:none;z-index:4}
+.book{max-width:1320px;margin:0 auto;padding:0 40px 0 76px}
+#tema{position:fixed;bottom:16px;right:16px;z-index:20;min-height:44px;padding:0 16px;border-radius:4px;border:1px solid var(--fio-forte);background:var(--folha);color:var(--tinta);font:600 13px 'Source Sans 3';letter-spacing:.06em;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;gap:8px}
+#tema:focus-visible{outline:2px solid var(--anil);outline-offset:2px}
+
+.cover{min-height:100vh;display:grid;grid-template-rows:auto 1fr auto;padding:36px 0 56px}
+.cover .meta{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-top:2px solid var(--tinta);border-bottom:1px solid var(--tinta);font:600 12px 'Source Sans 3';letter-spacing:.14em;text-transform:uppercase}
+.cover .mid{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:48px;align-items:end;padding:56px 0 64px}
+.cover .wm{font:italic 400 clamp(84px,12.5vw,230px)/.82 'Newsreader';letter-spacing:-.035em;margin-left:-.04em}
+.cover .tag{font:300 clamp(24px,3vw,38px)/1.2 'Newsreader';margin-top:28px;max-width:16em;color:var(--tinta-2)}
+.cover .tag em{color:var(--tinta)}
+.cover .side{font:italic 400 17px/1.5 'Newsreader';color:var(--tinta-2);border-left:1px solid var(--fio-forte);padding-left:20px}
+.cover .side b{display:block;font:600 11px 'Source Sans 3';letter-spacing:.14em;text-transform:uppercase;color:var(--tinta);font-style:normal;margin-bottom:6px}
+.toc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:40px;border-top:1px solid var(--tinta);padding-top:16px}
+.toc a{display:flex;align-items:baseline;gap:10px;padding:7px 0;color:var(--tinta);text-decoration:none;border-bottom:1px solid var(--fio);font:400 18px 'Newsreader'}
+.toc a span.n{font:600 12px 'Source Sans 3';letter-spacing:.08em;color:var(--argila);width:26px;font-variant-numeric:tabular-nums}
+.toc a span.d{flex:1;border-bottom:1px dotted var(--fio-forte);transform:translateY(-4px)}
+.toc a span.p{font:italic 15px 'Newsreader';color:var(--tinta-3)}
+.toc a:hover{color:var(--argila)}
+
+.sec{display:grid;grid-template-columns:200px minmax(0,1fr);column-gap:56px;padding:84px 0 96px;border-top:2px solid var(--tinta)}
+.mg{font-size:14px;line-height:1.45;color:var(--tinta-2);min-width:0}
+.ct{min-width:0}
+.mg-in{position:sticky;top:28px}
+.mg .no{font:italic 300 72px/1 'Newsreader';color:var(--argila);display:block;margin-bottom:10px;font-variant-numeric:lining-nums}
+.mg .tt{font:600 12px/1.3 'Source Sans 3';letter-spacing:.14em;text-transform:uppercase;color:var(--tinta)}
+.nota{margin-top:26px;padding-top:10px;border-top:1px solid var(--fio);font:italic 400 15px/1.45 'Newsreader';color:var(--tinta-2)}
+.nota .code{white-space:normal;overflow-wrap:anywhere}
+.nota b{font-style:normal;font-weight:600;color:var(--argila);margin-right:4px;font-family:'Source Sans 3';font-size:12px}
+h2.h{font:400 clamp(40px,5vw,60px)/1.02 'Newsreader';letter-spacing:-.018em;margin-bottom:22px;max-width:15em}
+h2.h em{color:var(--argila)}
+.lede{font:300 23px/1.5 'Newsreader';color:var(--tinta-2);max-width:36em;margin-bottom:44px}
+.lede em{color:var(--tinta)}
+h3.sub{font:500 28px/1.2 'Newsreader';margin:72px 0 10px;padding-top:16px;border-top:1px solid var(--tinta);display:flex;gap:14px;align-items:baseline}
+h3.sub .k{font:600 12px 'Source Sans 3';letter-spacing:.1em;color:var(--argila);font-variant-numeric:tabular-nums}
+h3.sub:first-of-type{margin-top:8px}
+h4.min{font:600 12px/1.3 'Source Sans 3';letter-spacing:.14em;text-transform:uppercase;color:var(--tinta);margin:32px 0 12px}
+.rub{font:600 12px/1.3 'Source Sans 3';letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-3)}
+p.tx{max-width:38em;margin-bottom:14px}
+p.tx.serif{font:400 19px/1.6 'Newsreader'}
+.intro{max-width:38em;color:var(--tinta-2);margin-bottom:24px}
+.cols-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 44px}
+.cols-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px 36px}
+.cols-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px}
+.box{background:var(--folha);border:1px solid var(--fio);border-radius:8px;padding:24px}
+.box.sunk{background:var(--folha-2);border-color:transparent}
+.fig{margin:0}
+.fig figcaption,.cap{font:italic 400 14.5px/1.45 'Newsreader';color:var(--tinta-2);margin-top:12px;max-width:42em}
+.fig figcaption b,.cap b{font:600 11px 'Source Sans 3';letter-spacing:.12em;text-transform:uppercase;color:var(--tinta);font-style:normal;margin-right:6px}
+.tblw{overflow-x:auto;margin:8px 0 12px}
+.tbl{width:100%;border-collapse:collapse;font-size:15px;line-height:1.45}
+.tbl th{font:600 11px/1.3 'Source Sans 3';letter-spacing:.12em;text-transform:uppercase;color:var(--tinta);text-align:left;padding:10px 14px 10px 0;border-top:2px solid var(--tinta);border-bottom:1px solid var(--tinta);white-space:nowrap}
+.tbl td{padding:11px 14px 11px 0;border-bottom:1px solid var(--fio);vertical-align:top}
+.tbl td.r,.tbl th.r{text-align:right}
+.tbl .serif{font-size:17px}
+.tbl code,.code{font:500 13px/1.4 ui-monospace,'SFMono-Regular',Menlo,monospace;color:var(--anil);background:var(--anil-fundo);padding:1px 5px;border-radius:3px;white-space:nowrap}
+.tbl td.evitar{color:var(--tinta-3);text-decoration:line-through;text-decoration-color:var(--lacre);text-decoration-thickness:1px}
+.pill-ok,.pill-no{display:inline-flex;align-items:center;gap:6px;font:700 11px 'Source Sans 3';letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:3px}
+.pill-ok{color:var(--musgo);background:var(--musgo-fundo)}
+.pill-no{color:var(--lacre);background:var(--lacre-fundo)}
+.dd{border-top:2px solid var(--musgo);padding-top:12px}
+.dn{border-top:2px solid var(--lacre);padding-top:12px}
+.dd .q,.dn .q{font:400 20px/1.4 'Newsreader';margin:10px 0 6px}
+.dn .q{color:var(--tinta-2);text-decoration:line-through;text-decoration-color:var(--lacre);text-decoration-thickness:1px}
+.dd small,.dn small{color:var(--tinta-3);font-size:14px;display:block}
+.attr{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-top:1px solid var(--tinta);border-bottom:1px solid var(--tinta)}
+.attr div{padding:18px 16px 20px 0;border-right:1px solid var(--fio)}
+.attr div+div{padding-left:16px}
+.attr div:last-child{border-right:0}
+.attr b{display:block;font:400 26px/1.1 'Newsreader';margin-bottom:6px}
+.attr span{font-size:14.5px;color:var(--tinta-2);display:block}
+.attr i{display:block;font:italic 14px 'Newsreader';color:var(--tinta-3);margin-top:8px}
+.quote{font:300 italic clamp(28px,3.4vw,42px)/1.25 'Newsreader';max-width:20em;padding:8px 0 8px 28px;border-left:5px double var(--argila);margin:16px 0 40px}
+.drop::first-letter{font:400 4.1em/.8 'Newsreader';float:left;margin:.08em .08em 0 -.02em;color:var(--argila)}
+.foot{padding:48px 0 80px;border-top:2px solid var(--tinta);display:flex;justify-content:space-between;gap:24px;font:italic 15px 'Newsreader';color:var(--tinta-2);flex-wrap:wrap}
+
+/* Swatches */
+.sws{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}
+.sw{background:var(--folha);border:1px solid var(--fio);border-radius:6px;overflow:hidden}
+.sw .c{height:84px;border-bottom:1px solid var(--fio);position:relative}
+.sw .c span{position:absolute;right:8px;bottom:6px;font:600 11px 'Source Sans 3'}
+.sw .i{padding:9px 11px 11px;font-size:13px;line-height:1.35}
+.sw .n{font:500 17px/1.2 'Newsreader';display:block}
+.sw .x{font-variant-numeric:tabular-nums;color:var(--tinta-3);letter-spacing:.02em}
+.ramp{display:flex;border-radius:4px;overflow:hidden;border:1px solid var(--fio)}
+.ramp div{flex:1;height:44px;display:flex;align-items:flex-end;padding:4px 6px;font:600 10px 'Source Sans 3';letter-spacing:.04em}
+
+/* Especímenes */
+.spec{display:flex;flex-wrap:wrap;gap:20px 28px;align-items:flex-start}
+.spec>div{display:flex;flex-direction:column;gap:8px}
+.spec .lbl{font:600 10.5px 'Source Sans 3';letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-3)}
+.stage{background:var(--papel);border:1px solid var(--fio);border-radius:8px;padding:24px;color:var(--tinta);overflow:hidden;min-width:0}
+.stage.t-light,.stage.t-dark{background:var(--papel)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--fio);border-radius:8px;overflow:hidden}
+.pair>div{padding:24px;background:var(--papel);color:var(--tinta)}
+
+/* =========================================================
+   APP — componentes (usados no livro e nos mockups)
+   ========================================================= */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:4px;font:600 15px/1 'Source Sans 3';letter-spacing:.01em;border:1px solid transparent;background:none;color:var(--tinta);cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn.pri{background:var(--acao);color:var(--sobre-acao)}
+.btn.pri.is-press{background:var(--acao-press)}
+.btn.sec{border-color:var(--fio-forte)}
+.btn.sec.is-press{background:var(--folha-2)}
+.btn.txt{padding:0 12px;color:var(--anil)}
+.btn.txt.is-press{background:var(--anil-fundo)}
+.btn.risco{border-color:var(--fio-forte);color:var(--tinta)}
+.btn.risco .ico{color:var(--lacre)}
+.btn.is-focus{outline:2px solid var(--anil);outline-offset:2px}
+.btn.pri.is-dis{background:var(--folha-2);color:var(--tinta-3);cursor:default}
+.btn.sec.is-dis,.btn.txt.is-dis{color:var(--tinta-3);border-color:var(--fio)}
+.btn.full{width:100%}
+.btn.ic{width:48px;padding:0}
+.btn.sm{min-height:40px;padding:0 14px;font-size:14px}
+
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px 0 10px;border:1px solid var(--fio-forte);border-radius:3px;font:500 14px/1 'Source Sans 3';color:var(--tinta);background:var(--folha);white-space:nowrap}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;box-shadow:inset 0 0 0 1.5px currentColor;opacity:.75;flex:none}
+.chip.on{background:var(--tinta);color:var(--papel);border-color:var(--tinta)}
+.chip.on::before{opacity:1;background:currentColor;box-shadow:none;width:6px;height:6px}
+.chip.sug{border-style:dashed;color:var(--tinta-2);background:transparent}
+.chip.add{border-style:dashed;color:var(--anil);background:transparent}
+.chip.add::before{display:none}
+.chip.dis{color:var(--tinta-3);border-color:var(--fio);background:transparent}
+.chip.is-focus{outline:2px solid var(--anil);outline-offset:2px}
+.chip .x{font-size:12px;opacity:.7;margin-left:2px}
+
+.meter{padding-right:9%;position:relative}
+.rail{position:relative;height:14px}
+.rail::before{content:"";position:absolute;left:0;right:0;top:6px;height:2px;background:var(--fio)}
+.rail::after{content:"";position:absolute;right:-3px;top:0;bottom:0;width:5px;border-left:1px solid var(--argila);border-right:1px solid var(--argila)}
+.rail .fill{position:absolute;left:0;top:3px;height:8px;width:calc(var(--g,0)*100%);background:var(--musgo);border-radius:1px 0 0 1px}
+.rail .pace{position:absolute;left:calc(var(--p,0)*100%);top:-1px;bottom:-1px;width:2px;margin-left:-1px;background:var(--tinta)}
+.rail .over{position:absolute;left:100%;margin-left:3px;top:3px;height:8px;width:calc(min(var(--x,0),.1)*100%);background:repeating-linear-gradient(-45deg,var(--lacre) 0 1.6px,transparent 1.6px 4px);box-shadow:inset 0 0 0 1px var(--lacre)}
+.meter.at .fill{background:var(--ocre)}
+.meter.ov .fill{background:var(--lacre);width:100%}
+.meter.tall .rail{height:22px}.meter.tall .rail::before{top:10px}.meter.tall .fill,.meter.tall .over{top:5px;height:12px}
+
+.st{font:600 13px/1.2 'Source Sans 3';display:inline-flex;align-items:center;gap:5px}
+.st::before{content:"";width:8px;height:8px;flex:none}
+.st.ok{color:var(--musgo)}.st.ok::before{border-radius:50%;background:var(--musgo)}
+.st.at{color:var(--ocre)}.st.at::before{background:var(--ocre);clip-path:polygon(50% 0,100% 100%,0 100%)}
+.st.ov{color:var(--lacre)}.st.ov::before{background:repeating-linear-gradient(-45deg,var(--lacre) 0 1.5px,transparent 1.5px 3px);box-shadow:inset 0 0 0 1px var(--lacre)}
+.st.nt{color:var(--tinta-3)}.st.nt::before{border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--tinta-3)}
+
+.id{width:9px;height:9px;flex:none;display:inline-block;background:var(--c1)}
+
+.fld{padding:8px 0 6px}
+.fld>label,.fld>.lab{display:block;font:600 11px/1.3 'Source Sans 3';letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-3)}
+.fld .in{display:flex;align-items:center;gap:10px;min-height:48px;border-bottom:1px solid var(--fio-forte);font:400 19px/1.2 'Newsreader';color:var(--tinta)}
+.fld .in .ph-t{color:var(--tinta-3);font-style:italic}
+.fld.foc>label,.fld.foc>.lab{color:var(--tinta)}
+.fld.foc .in{border-bottom:2px solid var(--tinta)}
+.fld.err .in{border-bottom:2px solid var(--lacre)}
+.fld.err>label,.fld.err>.lab{color:var(--lacre)}
+.fld.dis .in{color:var(--tinta-3);border-bottom-style:dotted}
+.fld .hint{font:13.5px/1.35 'Source Sans 3';color:var(--tinta-3);margin-top:6px;display:flex;gap:6px;align-items:flex-start}
+.fld.err .hint{color:var(--lacre)}
+.fld.money .in{font:400 46px/1 'Newsreader';min-height:68px;font-variant-numeric:lining-nums tabular-nums;align-items:baseline;padding-top:10px}
+.fld.money .in{gap:0}
+.fld.money .cur{font:500 17px 'Source Sans 3';color:var(--tinta-2);margin-right:10px}
+.fld.money .cts{color:var(--tinta-2)}
+.caret{display:inline-block;width:2px;height:.9em;background:var(--anil);margin-left:2px;vertical-align:-.08em;animation:pisca 1.1s steps(1) infinite}
+@keyframes pisca{50%{opacity:0}}
+.emenda{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font:13.5px/1.3 'Source Sans 3';color:var(--tinta-2);margin-top:8px}
+.emenda s{color:var(--tinta-3);text-decoration-color:var(--argila);font-variant-numeric:tabular-nums}
+.emenda .mk{font:italic 600 14px 'Newsreader';color:var(--argila)}
+.emenda a{font-weight:600;color:var(--anil);text-decoration:none}
+
+.seg{display:flex;border-bottom:1px solid var(--fio)}
+.seg span{flex:1;min-height:48px;display:grid;place-items:center;font:500 14px 'Source Sans 3';color:var(--tinta-3);position:relative;white-space:nowrap;padding:0 6px}
+.seg span.on{color:var(--tinta);font-weight:700}
+.seg span.on::after{content:"";position:absolute;left:14%;right:14%;bottom:-1px;height:2px;background:var(--tinta)}
+.pnav{display:flex;align-items:center;justify-content:space-between;min-height:48px}
+.pnav .lb{font:500 17px 'Newsreader';text-align:center}
+.pnav .lb small{display:block;font:500 12px 'Source Sans 3';color:var(--tinta-3);letter-spacing:.04em}
+.ib{width:48px;height:48px;display:grid;place-items:center;border-radius:24px;color:var(--tinta);flex:none}
+.ib.dim{color:var(--tinta-3)}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--fio-forte);border-radius:4px}
+.stepper span{width:48px;height:44px;display:grid;place-items:center;font:500 20px 'Source Sans 3'}
+.stepper b{min-width:56px;text-align:center;font:500 22px 'Newsreader';border-left:1px solid var(--fio);border-right:1px solid var(--fio);line-height:44px;font-variant-numeric:tabular-nums}
+.days{display:flex;gap:4px}
+.days span{width:38px;height:44px;display:grid;place-items:center;border:1px solid var(--fio);border-radius:3px;font:600 12px 'Source Sans 3';color:var(--tinta-2)}
+.days span.on{background:var(--tinta);color:var(--papel);border-color:var(--tinta)}
+.dtrow{display:grid;grid-template-columns:auto minmax(0,1fr);gap:24px 40px;align-items:start}
+@media (max-width:760px){.dtrow{grid-template-columns:minmax(0,1fr)}}
+.dlg.dtp{width:336px;max-width:100%;padding:22px 0 12px}
+.dtp>.over-r,.dtp>h4,.dtp>.fld,.dtp>.emh{padding:0 24px}
+.dtp>.pnav{padding:0 12px}
+.dtp>.act{padding:0 12px}
+.cal{display:grid;grid-template-columns:repeat(7,48px);justify-content:center}
+.cal .wd{height:28px;display:grid;place-items:center;font:600 10.5px 'Source Sans 3';letter-spacing:.06em;color:var(--tinta-3)}
+.cal .d{height:48px;display:grid;place-items:center}
+.cal .d span{width:40px;height:40px;display:grid;place-items:center;border-radius:3px;font:500 15px 'Newsreader';font-variant-numeric:lining-nums tabular-nums;color:var(--tinta)}
+.cal .d.fut span{color:var(--tinta-3);font-weight:400}
+.cal .d.hoje span{color:var(--argila);font-weight:600;box-shadow:inset 0 -2px 0 var(--argila)}
+.cal .d.on span{background:var(--tinta);color:var(--papel)}
+.cal .d.on.hoje span{box-shadow:inset 0 -3px 0 var(--argila)}
+.cal .d.foc span{outline:2px solid var(--anil);outline-offset:2px}
+
+.rec{background:var(--folha);border:1px solid var(--fio);border-radius:8px;padding:12px 14px 10px 16px;position:relative}
+.rec.novo{padding-left:24px}
+.rec.novo::before{content:"";position:absolute;left:8px;top:14px;bottom:14px;width:5px;border-left:1px solid var(--argila);border-right:1px solid var(--argila)}
+.rec .src{display:flex;justify-content:space-between;gap:8px;font:600 11px/1.3 'Source Sans 3';letter-spacing:.1em;text-transform:uppercase;color:var(--tinta-3)}
+.rec .raw{font:italic 400 14px/1.4 'Newsreader';color:var(--tinta-2);margin:5px 0 9px}
+.rec .ex{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-top:9px;border-top:1px dotted var(--fio-forte)}
+.mer{font:500 19px/1.2 'Newsreader'}
+.mer.alias{text-decoration:underline dotted var(--argila);text-decoration-thickness:1.5px;text-underline-offset:5px}
+.amt{font:500 19px/1.2 'Newsreader';font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.amt .cur{font:500 .7em 'Source Sans 3';color:var(--tinta-2);margin-right:.18em}
+.rec .chips{margin:9px 0 8px}
+.rec .act{display:flex;justify-content:flex-end;gap:8px;align-items:center}
+.rec .act .grow{flex:1;font:13px 'Source Sans 3';color:var(--tinta-3);white-space:nowrap}
+.rec .flag{display:inline-flex;gap:6px;align-items:center;font:600 12px 'Source Sans 3';color:var(--ocre);background:var(--ocre-fundo);padding:4px 8px;border-radius:3px;margin-top:8px}
+.rec.prop{background:transparent;border-style:dashed}
+.rec.prop .mer{color:var(--tinta-2)}
+.rec .link{font:13px/1.35 'Source Sans 3';color:var(--tinta-2);margin-top:6px;display:flex;gap:6px;align-items:center}
+
+.snack{display:flex;align-items:center;gap:8px;background:var(--tinta);color:var(--papel);border-radius:6px;padding:4px 4px 4px 16px;min-height:52px;font:15px/1.3 'Source Sans 3';box-shadow:var(--sombra)}
+.snack .t{flex:1}
+.snack .btn{color:var(--snack-acao);font-weight:700;letter-spacing:.04em;padding:0 12px}
+.dlg{background:var(--folha);border-radius:8px;box-shadow:var(--sombra);padding:24px 24px 12px;width:300px;color:var(--tinta)}
+.dlg h4{font:500 22px/1.25 'Newsreader';margin-bottom:8px}
+.dlg p{color:var(--tinta-2);font-size:15px;line-height:1.5}
+.dlg .act{display:flex;justify-content:flex-end;gap:4px;margin-top:18px}
+.navb{height:72px;display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--fio);background:var(--papel);flex:none}
+.navb a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font:500 11.5px 'Source Sans 3';white-space:nowrap;min-width:0;color:var(--tinta-3);position:relative;text-decoration:none}
+.navb a.on{color:var(--tinta);font-weight:700}
+.navb a.on::before{content:"";position:absolute;top:-1px;left:24%;right:24%;height:2px;background:var(--tinta)}
+.bdg{position:absolute;top:9px;left:calc(50% + 7px);min-width:18px;height:18px;border-radius:9px;background:var(--argila);color:var(--folha);font:700 11px/18px 'Source Sans 3';text-align:center;padding:0 5px;font-variant-numeric:tabular-nums}
+
+/* =========================================================
+   TELAS — moldura de celular 360 × 800
+   ========================================================= */
+.shots{display:flex;flex-wrap:wrap;gap:48px 36px;align-items:flex-start;margin:28px 0 8px}
+.shot figcaption{margin-top:14px;font:italic 15px/1.45 'Newsreader';color:var(--tinta-2);max-width:380px}
+.shot figcaption b{font:600 11px 'Source Sans 3';letter-spacing:.12em;text-transform:uppercase;color:var(--tinta);display:block;font-style:normal;margin-bottom:3px}
+.ph{width:380px;height:820px;padding:10px;border-radius:48px;background:#0D0C0A;box-shadow:0 0 0 1px #3a352e,0 40px 70px -40px rgba(20,16,10,.55);flex:none}
+.scr{width:360px;height:800px;border-radius:38px;overflow:hidden;position:relative;background:var(--papel);color:var(--tinta);font:400 15px/1.45 'Source Sans 3';display:flex;flex-direction:column}
+.sbar{height:34px;padding:4px 26px 0;display:flex;justify-content:space-between;align-items:center;font:600 13px 'Source Sans 3';flex:none;font-variant-numeric:tabular-nums}
+.sbar .r{display:flex;gap:6px;align-items:center}
+.gbar{height:22px;flex:none;display:grid;place-items:center;background:var(--papel)}
+.gbar::after{content:"";width:108px;height:4px;border-radius:2px;background:var(--tinta);opacity:.35}
+.bd{flex:1;overflow:hidden;padding:0 24px;position:relative}
+.tb{height:56px;display:flex;align-items:center;gap:2px;padding:0 4px 0 8px;flex:none}
+.tb .t{font:500 21px 'Newsreader';flex:1;padding-left:4px}
+.tb .wmk{font:italic 500 24px 'Newsreader';letter-spacing:-.02em;flex:1;padding-left:16px;display:flex;align-items:center;gap:8px}
+.over-r{font:600 11px/1.3 'Source Sans 3';letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-3)}
+.hl{font:400 29px/1.15 'Newsreader';letter-spacing:-.01em;margin:6px 0 8px}
+.hl .num{white-space:nowrap}
+.hl .cur{font:500 .52em 'Source Sans 3';color:var(--tinta-2);vertical-align:.12em;margin-right:.1em}
+.hl .cts{font-size:.62em;color:var(--tinta-2)}
+.dek{font:15px/1.45 'Source Sans 3';color:var(--tinta-2)}
+.strip{display:flex;align-items:center;gap:12px;margin:16px 0 4px;padding:10px 4px 10px 14px;background:var(--folha-2);border-radius:6px;position:relative}
+.strip::before{content:"";position:absolute;left:5px;top:10px;bottom:10px;width:4px;border-left:1px solid var(--argila);border-right:1px solid var(--argila)}
+.strip .t{flex:1;font:500 15px/1.3 'Source Sans 3';padding-left:6px}
+.strip .t small{display:block;color:var(--tinta-3);font-size:13px;font-weight:400}
+.secline{display:flex;justify-content:space-between;align-items:baseline;margin-top:18px;padding-bottom:6px;border-bottom:1px solid var(--tinta)}
+.vr{padding:12px 0 11px;border-bottom:1px solid var(--fio)}
+.vr .l1{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.vr .nm{font:500 19px/1.2 'Newsreader';display:flex;align-items:center;gap:9px}
+.vr .vv{text-align:right;font:500 17px/1.2 'Newsreader';font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.vr .vv small{font:400 12.5px 'Source Sans 3';color:var(--tinta-3);margin-left:4px}
+.vr .meter{margin:9px 0 6px}
+.vr .l3{display:flex;justify-content:space-between;gap:8px;font:13px/1.2 'Source Sans 3';color:var(--tinta-2);font-variant-numeric:tabular-nums}
+.dayh{display:flex;align-items:center;gap:10px;margin:14px 0 10px;font:600 11px 'Source Sans 3';letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-3)}
+.dayh::after{content:"";flex:1;height:1px;background:var(--fio)}
+.stack{display:flex;flex-direction:column;gap:10px}
+.quoteblk{background:var(--folha-2);border-radius:6px;padding:10px 14px;font:italic 14px/1.45 'Newsreader';color:var(--tinta-2)}
+.quoteblk b{display:block;font:600 11px 'Source Sans 3';letter-spacing:.1em;text-transform:uppercase;font-style:normal;color:var(--tinta-3);margin-bottom:3px}
+.prev{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid var(--fio);border-radius:6px;font:14px/1.4 'Source Sans 3';color:var(--tinta-2);background:var(--folha)}
+.prev b{color:var(--tinta);font-weight:600}
+.dock{position:absolute;left:0;right:0;bottom:0;padding:14px 24px 12px;background:var(--papel);border-top:1px solid var(--fio);display:flex;gap:10px}
+.dock .btn{flex:1}
+.lrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:11px 0;border-bottom:1px solid var(--fio)}
+.lrow .w{font:13px 'Source Sans 3';color:var(--tinta-3);display:block;margin-top:2px}
+.cutline{display:flex;align-items:center;gap:8px;margin:-1px 0;font:italic 13px 'Newsreader';color:var(--lacre)}
+.cutline::before,.cutline::after{content:"";height:0;border-top:1.5px dashed var(--lacre);flex:1}
+.calm{padding:14px 16px;border-radius:6px;background:var(--lacre-fundo);color:var(--tinta);font:14.5px/1.45 'Source Sans 3';margin:16px 0}
+.calm b{font:500 17px 'Newsreader';display:block;margin-bottom:2px}
+.toggle{width:44px;height:26px;border-radius:13px;background:var(--tinta);position:relative;flex:none}
+.toggle::after{content:"";position:absolute;right:3px;top:3px;width:20px;height:20px;border-radius:50%;background:var(--papel)}
+.toggle.off{background:var(--fio-forte)}.toggle.off::after{right:auto;left:3px}
+.check{width:20px;height:20px;border-radius:3px;background:var(--tinta);display:grid;place-items:center;color:var(--papel);flex:none}
+
+/* =========================================================
+   WIDGETS
+   ========================================================= */
+.wall{width:380px;border-radius:40px;padding:22px 18px 18px;background:var(--parede);color:var(--tinta);flex:none;box-shadow:0 0 0 1px var(--fio)}
+.wall .clock{font:300 64px/1 'Newsreader';color:var(--tinta);letter-spacing:-.02em;padding:4px 6px 0}
+.wall .date{font:500 14px 'Source Sans 3';color:var(--tinta-2);padding:4px 8px 18px}
+.wgrid{display:flex;flex-wrap:wrap;gap:16px}
+.wg{background:var(--wg-fundo);border-radius:22px;padding:14px 16px;color:var(--tinta);box-shadow:var(--sombra);overflow:hidden;position:relative;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.w22{width:164px;height:164px}.w42{width:344px;height:164px}.w44{width:344px;height:344px}
+.wg .wh{display:flex;justify-content:space-between;align-items:center;font:600 10.5px/1.2 'Source Sans 3';letter-spacing:.12em;text-transform:uppercase;color:var(--tinta-3);min-height:16px}
+.wg .wh .l{display:flex;align-items:center;gap:6px}
+.wg .big{font:400 34px/1.05 'Newsreader';font-variant-numeric:lining-nums tabular-nums;letter-spacing:-.01em}
+.wg .big .cur{font:500 .44em 'Source Sans 3';color:var(--tinta-2);vertical-align:.3em;margin-right:.12em}
+.wg .big .cts{font-size:.6em;color:var(--tinta-2)}
+.wg .s{font:13px/1.3 'Source Sans 3';color:var(--tinta-2)}
+.wrow{display:grid;grid-template-columns:106px minmax(0,1fr) 76px;align-items:center;gap:10px;min-height:30px}
+.wrow .n{font:500 15.5px 'Newsreader';display:flex;align-items:center;gap:7px;white-space:nowrap;overflow:hidden}
+.wrow .v{text-align:right;font:500 14px 'Source Sans 3';font-variant-numeric:tabular-nums;white-space:nowrap}
+.wrow .v.ov{color:var(--lacre)}
+.wrow .v.at{color:var(--ocre)}
+.wrow .meter{padding-right:12%}
+.wbtn{min-height:48px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font:600 14px 'Source Sans 3';padding:0 14px}
+.wbtn.pri{background:var(--acao);color:var(--sobre-acao)}
+.wbtn.sec{box-shadow:inset 0 0 0 1px var(--fio-forte);color:var(--tinta)}
+.wbtn.ic{width:48px;padding:0}
+.dockrow{display:flex;justify-content:space-around;padding:20px 6px 4px}
+.dockrow .ai{width:56px;height:56px;border-radius:50%;background:var(--folha);opacity:.55}
+.dockrow .ai.me{opacity:1;background:none}
+
+/* =========================================================
+   MOVIMENTO — demonstração
+   ========================================================= */
+.demo-risco{position:relative;display:inline-block;font:500 22px 'Newsreader'}
+.demo-risco::after{content:"";position:absolute;left:-4px;right:-4px;top:55%;height:2px;background:var(--lacre);transform-origin:left;transform:scaleX(0);animation:riscar 3.2s cubic-bezier(.2,.7,.1,1) infinite}
+@keyframes riscar{0%,15%{transform:scaleX(0)}30%,80%{transform:scaleX(1);opacity:1}95%,100%{transform:scaleX(1);opacity:0}}
+.demo-lanca{height:8px;background:var(--fio);position:relative;border-radius:1px;width:220px}
+.demo-lanca::after{content:"";position:absolute;left:0;top:0;bottom:0;background:var(--musgo);width:40%;animation:lanca 3.2s cubic-bezier(.2,.7,.1,1) infinite}
+@keyframes lanca{0%,25%{width:40%}40%,85%{width:58%}100%{width:40%}}
+.demo-folha{width:140px;height:70px;border:1px solid var(--fio);border-radius:6px;background:var(--folha);box-shadow:var(--sombra);animation:folha 3.2s cubic-bezier(.2,.7,.1,1) infinite}
+@keyframes folha{0%,20%{transform:translateY(30px);opacity:0}45%,85%{transform:none;opacity:1}100%{transform:translateY(8px);opacity:0}}
+.curve{stroke:var(--tinta);stroke-width:2;fill:none}
+@media (prefers-reduced-motion:reduce){
+  .demo-risco::after,.demo-lanca::after,.demo-folha,.caret{animation:none}
+  .demo-risco::after{transform:scaleX(1)}
+  html{scroll-behavior:auto}
+}
+
+/* =========================================================
+   RESPONSIVO
+   ========================================================= */
+@media (max-width:1100px){
+  .cols-4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .attr{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .attr div{border-right:0;border-bottom:1px solid var(--fio);padding-left:0!important}
+}
+@media (max-width:960px){
+  .sec{grid-template-columns:minmax(0,1fr);row-gap:24px}
+  .mg-in{position:static}
+  .cols-2,.cols-3{grid-template-columns:1fr}
+  .cover .mid{grid-template-columns:1fr}
+  .toc{grid-template-columns:1fr 1fr}
+  .pair{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  body::before{left:8px;width:4px}
+  .book{padding:0 16px 0 24px}
+
+  .toc{grid-template-columns:1fr}
+  .cols-4,.attr{grid-template-columns:1fr}
+  .shots{flex-wrap:nowrap;overflow-x:auto;padding-bottom:16px;margin-right:-16px}
+  .lede{font-size:20px}
+  .cover .meta span:nth-child(2){display:none}
+}
+
+/* ===== proposta B: régua do teto ===== */
+.tr{padding-right:9%;position:relative}
+.tr .rl{position:relative;height:14px}
+.tr .rl::before{content:"";position:absolute;left:0;right:0;top:6px;height:2px;background:var(--fio)}
+.tr .rl::after{content:"";position:absolute;right:-3px;top:0;bottom:0;width:5px;border-left:1px solid var(--argila);border-right:1px solid var(--argila)}
+.tr .lots{position:absolute;left:0;top:4px;height:6px;width:100%;overflow:hidden}
+.tr .lot{position:absolute;top:0;bottom:0;left:calc(var(--a)*100%);width:calc(var(--w)*100%);background:var(--k);box-shadow:inset -2px 0 0 var(--papel)}
+.tr .lot.lapis{background:transparent;box-shadow:inset 0 0 0 1.25px var(--tinta-2);border-right:2px solid transparent}
+.tr .over{position:absolute;left:100%;margin-left:3px;top:4px;height:6px;width:calc(min(var(--x,0),.1)*100%);background:repeating-linear-gradient(-45deg,var(--lacre) 0 1.6px,transparent 1.6px 4px);box-shadow:inset 0 0 0 1px var(--lacre)}
+.tr.tall .rl{height:22px}.tr.tall .rl::before{top:10px}.tr.tall .lots,.tr.tall .over{top:7px;height:8px}
+.prev .tr .lot{box-shadow:inset -2px 0 0 var(--folha)}
+.prev .tr .lot.lapis{box-shadow:inset 0 0 0 1.25px var(--tinta-2)}
+.teto{margin-top:12px;padding:2px 0 0;cursor:pointer}
+.teto .l1{display:flex;justify-content:space-between;align-items:center;min-height:26px}
+.teto .l1 .v{display:flex;align-items:center;gap:2px;font:500 17px/1.2 'Newsreader';margin-right:-4px}
+.teto .tr{margin:5px 0 6px}
+.teto .l3,.tl3{display:flex;justify-content:space-between;gap:8px;font:13px/1.25 'Source Sans 3';color:var(--tinta-2);font-variant-numeric:tabular-nums}
+.teto .l3 .ov,.tl3 .ov{color:var(--lacre);font-weight:600}
+.tl3{margin-top:4px}
+.teto0{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0 -6px;font:13px/1.3 'Source Sans 3';color:var(--tinta-3)}
+.teto0 .btn{margin-right:-12px;min-height:44px}
+.axis{display:flex;font:600 12px 'Source Sans 3';color:var(--tinta-3);margin-top:4px;padding-right:2%}
+.axis .t{margin-left:auto;margin-right:10px;color:var(--argila)}
+.axis .x{color:var(--lacre);min-width:24px;text-align:right}
+.dv{display:grid;grid-template-columns:minmax(0,1fr) auto 40px;gap:10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--fio)}
+.dv .n{font:500 16px/1.2 'Newsreader';display:flex;align-items:center;gap:8px;min-width:0}
+.dv .c{font:500 15px 'Newsreader';white-space:nowrap}
+.dv .p{font:600 12.5px 'Source Sans 3';color:var(--tinta-3);text-align:right}
+.dv .id{width:8px;height:8px}
+.dv.livre .n,.dv.livre .c{color:var(--tinta-3);font-style:italic}
+.dv .id.vazio{background:none;box-shadow:inset 0 0 0 1px var(--fio-forte)}
+.dv.alem .n,.dv.alem .c,.dv.alem .p{color:var(--lacre)}
+.dv .id.hz{background:repeating-linear-gradient(-45deg,var(--lacre) 0 1.5px,transparent 1.5px 3px);box-shadow:inset 0 0 0 1px var(--lacre)}
+.warn{display:flex;gap:6px;align-items:flex-start;color:var(--tinta-2)}
+.warn .ico{color:var(--lacre);margin-top:1px}
+.warn b{color:var(--lacre);font-weight:600;white-space:nowrap}
+.veil{position:absolute;inset:0;background:var(--scrim);display:grid;place-items:center;z-index:5;padding:0 20px}
+.dlg.wide{width:100%;max-width:320px}
+.opts{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.opt{display:flex;flex-direction:column;justify-content:center;min-height:56px;padding:9px 14px;border:1px solid var(--fio-forte);border-radius:4px;cursor:pointer}
+.opt b{font:600 15px/1.25 'Source Sans 3';color:var(--tinta)}
+.opt small{font:13px/1.35 'Source Sans 3';color:var(--tinta-2);margin-top:2px}
+.dlg .act{margin-top:10px}
+.anat{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:22px;font-size:14px;color:var(--tinta-2)}
+.anat b{color:var(--argila)}
+.rat{max-width:46em;margin:0 0 8px;padding-left:22px;border-left:5px double var(--argila)}
+.rat li{margin:0 0 6px 18px;font:400 17px/1.5 'Newsreader';color:var(--tinta-2)}
+.rat li b{color:var(--tinta);font-weight:500}
+.sec.b{padding:56px 0 64px}
+.hd{padding:36px 0 44px}
+.hd .meta{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-top:2px solid var(--tinta);border-bottom:1px solid var(--tinta);font:600 12px 'Source Sans 3';letter-spacing:.14em;text-transform:uppercase;margin-bottom:40px}
+@media (max-width:760px){.anat{grid-template-columns:1fr 1fr}}
+
+</style>
+</head>
+<body>
+<button id="tema" type="button" aria-label="Alternar entre leitura clara e escura">
+  <svg class="ico s18" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/></svg>
+  <span>Ler no escuro</span>
+</button>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-anotacao" viewBox="0 0 24 24"><path d="M14.5 4.5l5 5L10 19H5v-5z"/><path d="M12.5 6.5l5 5"/><path d="M3 21h8"/></symbol>
+    <symbol id="i-recado" viewBox="0 0 24 24"><path d="M5 3.5h10l4 4V20.5H5z"/><path d="M15 3.5v4h4"/><path d="M8.5 12h7M8.5 15.5h4.5"/></symbol>
+    <symbol id="i-pauta" viewBox="0 0 24 24"><path d="M3.5 13.5L6 5h12l2.5 8.5V19.5h-17z"/><path d="M3.5 13.5H8l1 2h6l1-2h4.5"/><path d="M9 8.5h6M8.5 11h7"/></symbol>
+    <symbol id="i-lancar" viewBox="0 0 24 24"><path d="M5.5 11.5l4 4L18.5 6"/><path d="M3.5 20h17"/></symbol>
+    <symbol id="i-riscar" viewBox="0 0 24 24"><path d="M6 7.5h12M6 16.5h8"/><path d="M3 12.5c2.5-1.8 4.5-1.8 6.5-.2s4 1.6 6 0 3.8-1.6 5.5-.3"/></symbol>
+    <symbol id="i-lancamento" viewBox="0 0 24 24"><path d="M4 4.5h16v15H4z"/><path d="M8 4.5v15M9.5 4.5v15"/><path d="M12.5 9h5M12.5 12.5h5M12.5 16h3"/></symbol>
+    <symbol id="i-marcador" viewBox="0 0 24 24"><path d="M7 3.5h10v17l-5-4-5 4z"/><circle cx="12" cy="8.5" r="1.4"/></symbol>
+    <symbol id="i-emenda" viewBox="0 0 24 24"><path d="M6.5 17.5L12 9l5.5 8.5"/><path d="M4 21h16"/><path d="M9 4.5h6"/></symbol>
+    <symbol id="i-apelido" viewBox="0 0 24 24"><path d="M10 7.5c-2.6.6-4.5 2.8-4.5 6"/><circle cx="8" cy="15" r="2.5"/><path d="M18.5 7.5c-2.6.6-4.5 2.8-4.5 6"/><circle cx="16.5" cy="15" r="2.5"/></symbol>
+    <symbol id="i-estorno" viewBox="0 0 24 24"><path d="M9 5.5L5 9.5l4 4"/><path d="M5 9.5h9.5a4.5 4.5 0 0 1 0 9H10"/></symbol>
+    <symbol id="i-verba" viewBox="0 0 24 24"><path d="M6 3.5h12v17H6z"/><path d="M6 11h12"/><path d="M9 14.5h6M9 17.5h6" /></symbol>
+    <symbol id="i-periodo" viewBox="0 0 24 24"><path d="M4 6h16v14H4z"/><path d="M4 10h16M8 3.5V7.5M16 3.5V7.5"/><path d="M8 14h3v3H8z"/></symbol>
+    <symbol id="i-ritmo" viewBox="0 0 24 24"><path d="M3 15h18"/><path d="M4 12.5v5M20 12.5v5M8 14v2M12 14v2M16 14v2"/><path d="M14 6.5l-2 3-2-3z"/></symbol>
+    <symbol id="i-fora" viewBox="0 0 24 24"><path d="M3 12h11"/><path d="M15 6v12M17 6v12"/><path d="M19 9.5l2.5 2.5-2.5 2.5"/></symbol>
+    <symbol id="i-leitura" viewBox="0 0 24 24"><path d="M3.5 20h17"/><path d="M7 20v-6M12 20V7M17 20v-9"/><path d="M5 9l5-4 4 3 5-4" stroke-dasharray="1.5 2.2"/></symbol>
+    <symbol id="i-fontes" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z"/><circle cx="17" cy="17" r="3"/><path d="M17 12.5v1M17 20.5v1M12.5 17h1M20.5 17h1"/></symbol>
+    <symbol id="i-margem" viewBox="0 0 24 24"><path d="M5 3.5v17M7.5 3.5v17"/><path d="M11 8h9M11 12.5h7M11 17h4"/></symbol>
+    <symbol id="i-mais" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-voltar" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
+    <symbol id="i-avancar" viewBox="0 0 24 24"><path d="M9.5 5.5L16 12l-6.5 6.5"/></symbol>
+    <symbol id="i-fechar" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-ajustes" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+    <symbol id="i-pausa" viewBox="0 0 24 24"><path d="M6 9.5a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4s2-1.5 2-6.5"/><path d="M10 19.5a2 2 0 0 0 4 0"/><path d="M3.5 3.5l17 17"/></symbol>
+    <symbol id="i-aviso" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5M12 16.2v.3"/></symbol>
+    <symbol id="i-desfazer" viewBox="0 0 24 24"><path d="M8 5L4 9l4 4"/><path d="M4 9h11a5 5 0 0 1 0 10h-4"/></symbol>
+    <symbol id="i-lupa" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></symbol>
+    <symbol id="i-sinal" viewBox="0 0 24 24"><path d="M3 18h3v2H3zM8 14h3v6H8zM13 10h3v10h-3zM18 6h3v14h-3z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-bat" viewBox="0 0 24 24"><rect x="3" y="7" width="16" height="10" rx="2"/><path d="M21 10.5v3"/><rect x="5" y="9" width="10" height="6" rx="1" fill="currentColor" stroke="none"/></symbol>
+    <!-- Marca -->
+    <symbol id="marca" viewBox="0 0 48 48">
+      <path d="M13 6v36M17.5 6v36" stroke="var(--marca-fio,#A44D29)" stroke-width="1.8" fill="none"/>
+      <path d="M22 15h18M22 24h14M22 33h7" stroke="var(--marca-tinta,#1E1B16)" stroke-width="3.4" fill="none"/>
+      <circle cx="34" cy="33" r="2.1" fill="var(--marca-fio,#A44D29)"/>
+    </symbol>
+  </defs>
+</svg>
+<main class="book" id="b">
+
+<header class="hd">
+  <div class="meta"><span>Margem · Teto das cotas</span><span>Proposta B</span><span class="num">Outubro de 2026</span></div>
+  <h2 class="h">O teto como <em>régua das cotas.</em></h2>
+  <p class="lede">A soma das cotas lida contra o teto, com a mesma régua de papelaria das verbas — só que loteada: cada cota é um pedaço do teto.</p>
+  <ol class="rat">
+    <li><b>A régua do livro (8.5), loteada:</b> trilho = teto, fio duplo = teto, hachura = além.</li>
+    <li><b>Um lote por cota,</b> na cor da verba, maiores primeiro: a parte de cada uma se vê sem número.</li>
+    <li><b>Plano é traço, gasto é tinta:</b> lote de 6 dp, sem ritmo — o teto mede o plano, não o mês.</li>
+    <li><b>Sem teto, sem régua:</b> uma linha em tinta 3 com a soma e “Definir teto”.</li>
+    <li><b>Conta, não cobra:</b> “cabem R$ 780,00” · “no teto” · “R$ 220,00 além do teto”.</li>
+    <li><b>Mudar:</b> tela de valor com a régua ao vivo e a divisão do teto; o alcance, duas opções que já são a ação.</li>
+  </ol>
+  <p class="cap"><b>Cenário</b>O do livro (10.1): sexta, 9 de outubro de 2026; mês de 1 a 31; seis verbas cujas cotas somam R$ 3.720,00. Cada tela em claro e, ao lado, em escuro — mesmo layout, só os tokens mudam.</p>
+</header>
+
+<section class="sec b">
+  <aside class="mg"><div class="mg-in"><span class="no">B1</span><span class="tt">O cabeçalho em quatro estados</span>
+    <p class="nota"><b>Hierarquia</b>Manchete do dia → régua do teto → faixa da pauta → Ordenar → verbas. O teto é informação do cabeçalho; a pauta continua o único convite à ação.</p>
+    <p class="nota"><b>Ordem dos lotes</b>Da maior cota para a menor, fixa: não muda a cada dia como a ordem por risco da lista.</p>
+  </div></aside>
+  <div class="ct"><div class="shots"><figure class="shot" data-twin><div class="ph t-light"><div class="scr"><div class="sbar"><span>9:41</span><span class="r"><svg class="ico s16"><use href="#i-sinal"/></svg><svg class="ico s18"><use href="#i-bat"/></svg></span></div><div class="tb"><span class="wmk"><svg viewBox="0 0 48 48" width="22" height="22" style="--marca-tinta:var(--tinta);--marca-fio:var(--argila)"><use href="#marca"/></svg>margem</span><span class="ib" aria-label="Nova verba"><svg class="ico"><use href="#i-mais"/></svg></span></div><div class="bd"><div class="over-r">Mês de 1 a 31 de outubro</div><h3 class="hl">Dia 9 de 31.</h3><p class="dek">Faltam 23 dias, contando hoje.</p><div class="teto0" role="button" aria-label="Cotas somam R$ 3.720,00. Sem teto. Definir teto."><span>Cotas somam <span class="num">R$ 3.720,00</span> · sem teto</span><span class="btn txt sm">Definir teto</span></div><div class="strip" style="margin-top:12px"><svg class="ico" style="margin-left:6px"><use href="#i-pauta"/></svg><span class="t">4 recados na pauta<small>3 novos desde a última vez</small></span><span class="ib"><svg class="ico"><use href="#i-avancar"/></svg></span></div><div style="display:flex;align-items:center;gap:6px;margin-top:10px;border-bottom:1px solid var(--tinta)"><span class="over-r" style="color:var(--tinta)">Ordenar</span><div class="seg" style="flex:1;border:0"><span class="on" style="min-height:36px">risco</span><span style="min-height:36px">manual</span><span style="min-height:36px">A–Z</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c4)"></i>Lazer</span><span class="vv">R$ 477,00<small>de 465,00</small></span></div><div class="meter ov" style="--g:1;--p:.29;--x:.026"><div class="rail"><i class="fill"></i><i class="pace"></i><i class="over"></i></div></div><div class="l3"><span class="st ov">Fora da margem</span><span style="color:var(--lacre);font-weight:600">R$ 12,00 além</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c2)"></i>Restaurantes</span><span class="vv">R$ 231,10<small>de 620,00</small></span></div><div class="meter at" style="--g:.373;--p:.29"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st at">Acima do ritmo</span><span>margem R$ 388,90</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c3)"></i>Transporte</span><span class="vv">R$ 98,40<small>de 310,00</small></span></div><div class="meter at" style="--g:.317;--p:.29"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st at">Acima do ritmo</span><span>margem R$ 211,60</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c1)"></i>Mercado</span><span class="vv">R$ 512,30<small>de 1.240,00</small></span></div><div class="meter" style="--g:.413;--p:.468"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st ok">No ritmo</span><span>margem R$ 727,70</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c5)"></i>Casa</span><span class="vv">R$ 191,30<small>de 930,00</small></span></div><div class="meter" style="--g:.206;--p:.29"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st ok">No ritmo</span><span>margem R$ 738,70</span></div></div>
+</div><nav class="navb"><a class="on" href="#b"><svg class="ico"><use href="#i-verba"/></svg>Verbas</a><a href="#b"><svg class="ico"><use href="#i-pauta"/></svg>Pauta<span class="bdg">4</span></a><a href="#b"><svg class="ico"><use href="#i-lancamento"/></svg>Lançamentos</a><a href="#b"><svg class="ico"><use href="#i-leitura"/></svg>Leitura</a><a href="#b"><svg class="ico"><use href="#i-ajustes"/></svg>Ajustes</a></nav><div class="gbar"></div></div></div><figcaption><b>B1 · Verbas sem teto · <span class="cap-tema">claro</span></b>Padrão: nenhum teto. Não há régua, porque não há o que medir. Uma linha em tinta 3, logo abaixo da manchete, diz o fato — a soma das cotas — e oferece “Definir teto” como botão de texto. Nada de cartão, ícone ou argila: está ali para quem procura, não chama quem não quer.</figcaption></figure><figure class="shot" data-twin><div class="ph t-light"><div class="scr"><div class="sbar"><span>9:41</span><span class="r"><svg class="ico s16"><use href="#i-sinal"/></svg><svg class="ico s18"><use href="#i-bat"/></svg></span></div><div class="tb"><span class="wmk"><svg viewBox="0 0 48 48" width="22" height="22" style="--marca-tinta:var(--tinta);--marca-fio:var(--argila)"><use href="#marca"/></svg>margem</span><span class="ib" aria-label="Nova verba"><svg class="ico"><use href="#i-mais"/></svg></span></div><div class="bd"><div class="over-r">Mês de 1 a 31 de outubro</div><h3 class="hl">Dia 9 de 31.</h3><p class="dek">Faltam 23 dias, contando hoje.</p><div class="teto" role="button" aria-label="Teto do mês, R$ 4.500,00. Cotas somam R$ 3.720,00, cabem R$ 780,00. Tocar para mudar."><div class="l1"><span class="over-r" style="color:var(--tinta)">Teto do mês</span><span class="v num">R$ 4.500,00<svg class="ico s16" style="color:var(--tinta-3)"><use href="#i-avancar"/></svg></span></div><div class="tr" role="img" aria-label="Teto do mês, R$ 4.500,00. Cotas somam R$ 3.720,00, cabem R$ 780,00. Tocar para mudar."><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.2756;--k:var(--c1)"></i><i class="lot" style="--a:0.2756;--w:0.2067;--k:var(--c5)"></i><i class="lot" style="--a:0.4822;--w:0.1378;--k:var(--c2)"></i><i class="lot" style="--a:0.6200;--w:0.1033;--k:var(--c4)"></i><i class="lot" style="--a:0.7233;--w:0.0689;--k:var(--c3)"></i><i class="lot" style="--a:0.7922;--w:0.0344;--k:var(--c6)"></i></span></div></div><div class="l3"><span>Cotas somam <span class="num">R$ 3.720,00</span></span><span>cabem R$ 780,00</span></div></div><div class="strip" style="margin-top:12px"><svg class="ico" style="margin-left:6px"><use href="#i-pauta"/></svg><span class="t">4 recados na pauta<small>3 novos desde a última vez</small></span><span class="ib"><svg class="ico"><use href="#i-avancar"/></svg></span></div><div style="display:flex;align-items:center;gap:6px;margin-top:10px;border-bottom:1px solid var(--tinta)"><span class="over-r" style="color:var(--tinta)">Ordenar</span><div class="seg" style="flex:1;border:0"><span class="on" style="min-height:36px">risco</span><span style="min-height:36px">manual</span><span style="min-height:36px">A–Z</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c4)"></i>Lazer</span><span class="vv">R$ 477,00<small>de 465,00</small></span></div><div class="meter ov" style="--g:1;--p:.29;--x:.026"><div class="rail"><i class="fill"></i><i class="pace"></i><i class="over"></i></div></div><div class="l3"><span class="st ov">Fora da margem</span><span style="color:var(--lacre);font-weight:600">R$ 12,00 além</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c2)"></i>Restaurantes</span><span class="vv">R$ 231,10<small>de 620,00</small></span></div><div class="meter at" style="--g:.373;--p:.29"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st at">Acima do ritmo</span><span>margem R$ 388,90</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c3)"></i>Transporte</span><span class="vv">R$ 98,40<small>de 310,00</small></span></div><div class="meter at" style="--g:.317;--p:.29"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st at">Acima do ritmo</span><span>margem R$ 211,60</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c1)"></i>Mercado</span><span class="vv">R$ 512,30<small>de 1.240,00</small></span></div><div class="meter" style="--g:.413;--p:.468"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st ok">No ritmo</span><span>margem R$ 727,70</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c5)"></i>Casa</span><span class="vv">R$ 191,30<small>de 930,00</small></span></div><div class="meter" style="--g:.206;--p:.29"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st ok">No ritmo</span><span>margem R$ 738,70</span></div></div>
+</div><nav class="navb"><a class="on" href="#b"><svg class="ico"><use href="#i-verba"/></svg>Verbas</a><a href="#b"><svg class="ico"><use href="#i-pauta"/></svg>Pauta<span class="bdg">4</span></a><a href="#b"><svg class="ico"><use href="#i-lancamento"/></svg>Lançamentos</a><a href="#b"><svg class="ico"><use href="#i-leitura"/></svg>Leitura</a><a href="#b"><svg class="ico"><use href="#i-ajustes"/></svg>Ajustes</a></nav><div class="gbar"></div></div></div><figcaption><b>B2 · Cotas abaixo do teto · <span class="cap-tema">claro</span></b>Teto de R$ 4.500,00 (a renda, por exemplo). A régua do teto é loteada: cada cota é um lote na cor da sua verba, das maiores para as menores, e o fio duplo de argila é o teto. O trilho vazio até o fio é o que ainda cabe — dito embaixo, em reais: “cabem R$ 780,00”. Lotes de 6 dp, mais finos que a tinta de gasto das verbas (8 dp): plano é traço, gasto é tinta. Tocar em qualquer ponto do bloco abre o teto.</figcaption></figure><figure class="shot" data-twin><div class="ph t-light"><div class="scr"><div class="sbar"><span>9:41</span><span class="r"><svg class="ico s16"><use href="#i-sinal"/></svg><svg class="ico s18"><use href="#i-bat"/></svg></span></div><div class="tb"><span class="wmk"><svg viewBox="0 0 48 48" width="22" height="22" style="--marca-tinta:var(--tinta);--marca-fio:var(--argila)"><use href="#marca"/></svg>margem</span><span class="ib" aria-label="Nova verba"><svg class="ico"><use href="#i-mais"/></svg></span></div><div class="bd"><div class="over-r">Mês de 1 a 31 de outubro</div><h3 class="hl">Dia 9 de 31.</h3><p class="dek">Faltam 23 dias, contando hoje.</p><div class="teto" role="button" aria-label="Teto do mês, R$ 3.720,00. Cotas somam R$ 3.720,00, no teto. Tocar para mudar."><div class="l1"><span class="over-r" style="color:var(--tinta)">Teto do mês</span><span class="v num">R$ 3.720,00<svg class="ico s16" style="color:var(--tinta-3)"><use href="#i-avancar"/></svg></span></div><div class="tr" role="img" aria-label="Teto do mês, R$ 3.720,00. Cotas somam R$ 3.720,00, no teto. Tocar para mudar."><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.3333;--k:var(--c1)"></i><i class="lot" style="--a:0.3333;--w:0.2500;--k:var(--c5)"></i><i class="lot" style="--a:0.5833;--w:0.1667;--k:var(--c2)"></i><i class="lot" style="--a:0.7500;--w:0.1250;--k:var(--c4)"></i><i class="lot" style="--a:0.8750;--w:0.0833;--k:var(--c3)"></i><i class="lot" style="--a:0.9583;--w:0.0417;--k:var(--c6)"></i></span></div></div><div class="l3"><span>Cotas somam <span class="num">R$ 3.720,00</span></span><span>no teto</span></div></div><div class="strip" style="margin-top:12px"><svg class="ico" style="margin-left:6px"><use href="#i-pauta"/></svg><span class="t">4 recados na pauta<small>3 novos desde a última vez</small></span><span class="ib"><svg class="ico"><use href="#i-avancar"/></svg></span></div><div style="display:flex;align-items:center;gap:6px;margin-top:10px;border-bottom:1px solid var(--tinta)"><span class="over-r" style="color:var(--tinta)">Ordenar</span><div class="seg" style="flex:1;border:0"><span class="on" style="min-height:36px">risco</span><span style="min-height:36px">manual</span><span style="min-height:36px">A–Z</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c4)"></i>Lazer</span><span class="vv">R$ 477,00<small>de 465,00</small></span></div><div class="meter ov" style="--g:1;--p:.29;--x:.026"><div class="rail"><i class="fill"></i><i class="pace"></i><i class="over"></i></div></div><div class="l3"><span class="st ov">Fora da margem</span><span style="color:var(--lacre);font-weight:600">R$ 12,00 além</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c2)"></i>Restaurantes</span><span class="vv">R$ 231,10<small>de 620,00</small></span></div><div class="meter at" style="--g:.373;--p:.29"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st at">Acima do ritmo</span><span>margem R$ 388,90</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c3)"></i>Transporte</span><span class="vv">R$ 98,40<small>de 310,00</small></span></div><div class="meter at" style="--g:.317;--p:.29"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st at">Acima do ritmo</span><span>margem R$ 211,60</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c1)"></i>Mercado</span><span class="vv">R$ 512,30<small>de 1.240,00</small></span></div><div class="meter" style="--g:.413;--p:.468"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st ok">No ritmo</span><span>margem R$ 727,70</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c5)"></i>Casa</span><span class="vv">R$ 191,30<small>de 930,00</small></span></div><div class="meter" style="--g:.206;--p:.29"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st ok">No ritmo</span><span>margem R$ 738,70</span></div></div>
+</div><nav class="navb"><a class="on" href="#b"><svg class="ico"><use href="#i-verba"/></svg>Verbas</a><a href="#b"><svg class="ico"><use href="#i-pauta"/></svg>Pauta<span class="bdg">4</span></a><a href="#b"><svg class="ico"><use href="#i-lancamento"/></svg>Lançamentos</a><a href="#b"><svg class="ico"><use href="#i-leitura"/></svg>Leitura</a><a href="#b"><svg class="ico"><use href="#i-ajustes"/></svg>Ajustes</a></nav><div class="gbar"></div></div></div><figcaption><b>B3 · Cotas exatamente no teto · <span class="cap-tema">claro</span></b>Teto de R$ 3.720,00, igual à soma. O último lote encosta no fio duplo; embaixo, só “no teto”, em tinta 2. Sem selo, sem parabéns: é um fato, não uma conquista.</figcaption></figure><figure class="shot" data-twin><div class="ph t-light"><div class="scr"><div class="sbar"><span>9:41</span><span class="r"><svg class="ico s16"><use href="#i-sinal"/></svg><svg class="ico s18"><use href="#i-bat"/></svg></span></div><div class="tb"><span class="wmk"><svg viewBox="0 0 48 48" width="22" height="22" style="--marca-tinta:var(--tinta);--marca-fio:var(--argila)"><use href="#marca"/></svg>margem</span><span class="ib" aria-label="Nova verba"><svg class="ico"><use href="#i-mais"/></svg></span></div><div class="bd"><div class="over-r">Mês de 1 a 31 de outubro</div><h3 class="hl">Dia 9 de 31.</h3><p class="dek">Faltam 23 dias, contando hoje.</p><div class="teto" role="button" aria-label="Teto do mês, R$ 3.500,00. Cotas somam R$ 3.720,00, R$ 220,00 além do teto. Tocar para mudar."><div class="l1"><span class="over-r" style="color:var(--tinta)">Teto do mês</span><span class="v num">R$ 3.500,00<svg class="ico s16" style="color:var(--tinta-3)"><use href="#i-avancar"/></svg></span></div><div class="tr" role="img" aria-label="Teto do mês, R$ 3.500,00. Cotas somam R$ 3.720,00, R$ 220,00 além do teto. Tocar para mudar."><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.3333;--k:var(--c1)"></i><i class="lot" style="--a:0.3333;--w:0.2500;--k:var(--c5)"></i><i class="lot" style="--a:0.5833;--w:0.1667;--k:var(--c2)"></i><i class="lot" style="--a:0.7500;--w:0.1250;--k:var(--c4)"></i><i class="lot" style="--a:0.8750;--w:0.0833;--k:var(--c3)"></i><i class="lot" style="--a:0.9583;--w:0.0417;--k:var(--c6)"></i></span><i class="over" style="--x:0.0629"></i></div></div><div class="l3"><span>Cotas somam <span class="num">R$ 3.720,00</span></span><span class="ov">R$ 220,00 além do teto</span></div></div><div class="strip" style="margin-top:12px"><svg class="ico" style="margin-left:6px"><use href="#i-pauta"/></svg><span class="t">4 recados na pauta<small>3 novos desde a última vez</small></span><span class="ib"><svg class="ico"><use href="#i-avancar"/></svg></span></div><div style="display:flex;align-items:center;gap:6px;margin-top:10px;border-bottom:1px solid var(--tinta)"><span class="over-r" style="color:var(--tinta)">Ordenar</span><div class="seg" style="flex:1;border:0"><span class="on" style="min-height:36px">risco</span><span style="min-height:36px">manual</span><span style="min-height:36px">A–Z</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c4)"></i>Lazer</span><span class="vv">R$ 477,00<small>de 465,00</small></span></div><div class="meter ov" style="--g:1;--p:.29;--x:.026"><div class="rail"><i class="fill"></i><i class="pace"></i><i class="over"></i></div></div><div class="l3"><span class="st ov">Fora da margem</span><span style="color:var(--lacre);font-weight:600">R$ 12,00 além</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c2)"></i>Restaurantes</span><span class="vv">R$ 231,10<small>de 620,00</small></span></div><div class="meter at" style="--g:.373;--p:.29"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st at">Acima do ritmo</span><span>margem R$ 388,90</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c3)"></i>Transporte</span><span class="vv">R$ 98,40<small>de 310,00</small></span></div><div class="meter at" style="--g:.317;--p:.29"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st at">Acima do ritmo</span><span>margem R$ 211,60</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c1)"></i>Mercado</span><span class="vv">R$ 512,30<small>de 1.240,00</small></span></div><div class="meter" style="--g:.413;--p:.468"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st ok">No ritmo</span><span>margem R$ 727,70</span></div></div>
+<div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c5)"></i>Casa</span><span class="vv">R$ 191,30<small>de 930,00</small></span></div><div class="meter" style="--g:.206;--p:.29"><div class="rail"><i class="fill"></i><i class="pace"></i></div></div><div class="l3"><span class="st ok">No ritmo</span><span>margem R$ 738,70</span></div></div>
+</div><nav class="navb"><a class="on" href="#b"><svg class="ico"><use href="#i-verba"/></svg>Verbas</a><a href="#b"><svg class="ico"><use href="#i-pauta"/></svg>Pauta<span class="bdg">4</span></a><a href="#b"><svg class="ico"><use href="#i-lancamento"/></svg>Lançamentos</a><a href="#b"><svg class="ico"><use href="#i-leitura"/></svg>Leitura</a><a href="#b"><svg class="ico"><use href="#i-ajustes"/></svg>Ajustes</a></nav><div class="gbar"></div></div></div><figcaption><b>B4 · Cotas acima do teto · <span class="cap-tema">claro</span></b>Teto de R$ 3.500,00. Os lotes se apertam até o fio — como a tinta da verba fora da margem, que para em 100% — e o que passa vira a hachura em lacre na faixa reservada depois do fio (até 10% desenhados; além disso, o número fala). O excesso é da soma, não de uma verba: nenhum lote é cortado e a hachura não tem cor de verba. Embaixo, em lacre 600: “R$ 220,00 além do teto”. Nada foi bloqueado e nenhuma cota mudou.</figcaption></figure></div></div>
+</section>
+
+<section class="sec b">
+  <aside class="mg"><div class="mg-in"><span class="no">B2</span><span class="tt">Régua do teto</span>
+    <p class="nota"><b>Compose</b>Pode estender <span class="code">Meter</span>: mesmo trilho, fio e faixa de excesso; a tinta vira uma lista de lotes (valor, cor).</p>
+  </div></aside>
+  <div class="ct">
+<div class="box" style="padding:36px 28px 24px">
+  <div class="tr tall" role="img" aria-label="Régua do teto: cotas de 3.720 em teto de 4.500"><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.2756;--k:var(--c1)"></i><i class="lot" style="--a:0.2756;--w:0.2067;--k:var(--c5)"></i><i class="lot" style="--a:0.4822;--w:0.1378;--k:var(--c2)"></i><i class="lot" style="--a:0.6200;--w:0.1033;--k:var(--c4)"></i><i class="lot" style="--a:0.7233;--w:0.0689;--k:var(--c3)"></i><i class="lot" style="--a:0.7922;--w:0.0344;--k:var(--c6)"></i></span></div></div>
+  <div class="axis num" style="padding-right:0"><span>R$ 0</span><span class="t">teto 4.500</span><span class="x"></span></div>
+  <div class="anat">
+    <div><b>1 · Trilho</b><br>Fio de 2 dp. É o teto inteiro.</div>
+    <div><b>2 · Lotes</b><br>Uma cota por lote, na cor da verba, das maiores para as menores. 6 dp — mais fino que a tinta de gasto. Separados por 2 dp de papel.</div>
+    <div><b>3 · Teto</b><br>Fio duplo em argila: o mesmo fim de régua da cota.</div>
+    <div><b>4 · Além</b><br>Hachura em lacre nos 9% reservados. Acima do teto, os lotes se apertam até o fio: nenhuma verba é cortada, porque o excesso é da soma.</div>
+  </div>
+</div>
+<div class="tblw" style="margin-top:16px"><table class="tbl">
+  <thead><tr><th style="width:22%">Estado</th><th style="width:42%">Régua do teto</th><th>Texto embaixo</th></tr></thead>
+  <tbody>
+    <tr><td>Sem teto</td><td><span style="font:13px 'Source Sans 3';color:var(--tinta-3)">— sem régua —</span></td><td>Cotas somam R$ 3.720,00 · sem teto &nbsp;<span style="color:var(--anil);font-weight:600">Definir teto</span></td></tr>
+    <tr><td>Abaixo</td><td><div class="tr" role="img" aria-label=""><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.2756;--k:var(--c1)"></i><i class="lot" style="--a:0.2756;--w:0.2067;--k:var(--c5)"></i><i class="lot" style="--a:0.4822;--w:0.1378;--k:var(--c2)"></i><i class="lot" style="--a:0.6200;--w:0.1033;--k:var(--c4)"></i><i class="lot" style="--a:0.7233;--w:0.0689;--k:var(--c3)"></i><i class="lot" style="--a:0.7922;--w:0.0344;--k:var(--c6)"></i></span></div></div></td><td>cabem R$ 780,00</td></tr>
+    <tr><td>No teto</td><td><div class="tr" role="img" aria-label=""><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.3333;--k:var(--c1)"></i><i class="lot" style="--a:0.3333;--w:0.2500;--k:var(--c5)"></i><i class="lot" style="--a:0.5833;--w:0.1667;--k:var(--c2)"></i><i class="lot" style="--a:0.7500;--w:0.1250;--k:var(--c4)"></i><i class="lot" style="--a:0.8750;--w:0.0833;--k:var(--c3)"></i><i class="lot" style="--a:0.9583;--w:0.0417;--k:var(--c6)"></i></span></div></div></td><td>no teto</td></tr>
+    <tr><td>Acima</td><td><div class="tr" role="img" aria-label=""><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.3333;--k:var(--c1)"></i><i class="lot" style="--a:0.3333;--w:0.2500;--k:var(--c5)"></i><i class="lot" style="--a:0.5833;--w:0.1667;--k:var(--c2)"></i><i class="lot" style="--a:0.7500;--w:0.1250;--k:var(--c4)"></i><i class="lot" style="--a:0.8750;--w:0.0833;--k:var(--c3)"></i><i class="lot" style="--a:0.9583;--w:0.0417;--k:var(--c6)"></i></span><i class="over" style="--x:0.0629"></i></div></div></td><td><span style="color:var(--lacre);font-weight:600">R$ 220,00 além do teto</span></td></tr>
+  </tbody>
+</table></div>
+<p class="cap"><b>O que a régua do teto não tem</b>Nem tinta de gasto nem marca de ritmo: ela mede o plano, não o mês. Gasto continua medido só por verba, na régua de cada uma. Leitores de tela: “Teto do mês, R$ 4.500,00. Cotas somam R$ 3.720,00, cabem R$ 780,00. Tocar para mudar.”</p>
+</div>
+</section>
+
+<section class="sec b">
+  <aside class="mg"><div class="mg-in"><span class="no">B3</span><span class="tt">Definir, mudar e tirar</span>
+    <p class="nota"><b>Alcance</b>Diferente da cota (que sempre vale do mês atual em diante), o teto pergunta: só outubro, ou de outubro em diante. Os botões dizem o nome do mês.</p>
+    <p class="nota"><b>Um toque</b>Sem opção pré-marcada nem “Salvar” à parte: a escolha é a ação. Cancelar volta à tela com o valor digitado.</p>
+  </div></aside>
+  <div class="ct"><div class="shots"><figure class="shot" data-twin><div class="ph t-light"><div class="scr"><div class="sbar"><span>9:41</span><span class="r"><svg class="ico s16"><use href="#i-sinal"/></svg><svg class="ico s18"><use href="#i-bat"/></svg></span></div><div class="tb"><span class="ib"><svg class="ico"><use href="#i-fechar"/></svg></span><span class="t">Definir teto</span></div><div class="bd"><div class="over-r">Mês de 1 a 31 de outubro</div><div class="fld money foc" style="padding-top:6px"><label>Teto</label><div class="in" style="font-size:40px;min-height:58px"><span class="cur">R$</span>4.500<span class="cts">,00</span><span class="caret"></span></div><div class="hint">Limite para a soma das cotas, não para o gasto: cada verba continua medida pela sua cota.</div></div><div style="margin-top:14px"><div class="tr tall" role="img" aria-label="Régua do teto"><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.2756;--k:var(--c1)"></i><i class="lot" style="--a:0.2756;--w:0.2067;--k:var(--c5)"></i><i class="lot" style="--a:0.4822;--w:0.1378;--k:var(--c2)"></i><i class="lot" style="--a:0.6200;--w:0.1033;--k:var(--c4)"></i><i class="lot" style="--a:0.7233;--w:0.0689;--k:var(--c3)"></i><i class="lot" style="--a:0.7922;--w:0.0344;--k:var(--c6)"></i></span></div></div></div><div class="axis num"><span>R$ 0</span><span class="t">teto 4.500</span><span class="x"></span></div><div class="tl3"><span>Cotas somam <span class="num">R$ 3.720,00</span></span><span>cabem R$ 780,00</span></div><div class="secline" style="margin-top:12px"><span class="over-r" style="color:var(--tinta)">Divisão do teto</span><span class="over-r">cota · parte</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c1)"></i>Mercado</span><span class="c num">R$ 1.240,00</span><span class="p num">28%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c5)"></i>Casa</span><span class="c num">R$ 930,00</span><span class="p num">21%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c2)"></i>Restaurantes</span><span class="c num">R$ 620,00</span><span class="p num">14%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c4)"></i>Lazer</span><span class="c num">R$ 465,00</span><span class="p num">10%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c3)"></i>Transporte</span><span class="c num">R$ 310,00</span><span class="p num">7%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c6)"></i>Farmácia</span><span class="c num">R$ 155,00</span><span class="p num">3%</span></div><div class="dv livre"><span class="n"><i class="id vazio"></i>cabem</span><span class="c num">R$ 780,00</span><span class="p num">17%</span></div></div><div class="dock" style="bottom:22px"><span class="btn pri full">Salvar teto</span></div><div class="gbar" style="position:absolute;bottom:0;left:0;right:0"></div></div></div><figcaption><b>B5 · Definir teto · <span class="cap-tema">claro</span></b>Aberta por “Definir teto”. Campo de valor do livro (8.2), preenchido a partir dos centavos. A régua do teto vem ao vivo logo abaixo, em tamanho alto, com o eixo como no detalhe da verba (“teto 4.500”). A divisão do teto lista a parte de cada verba — cota e porcentagem do teto — e o que ainda cabe. Salvar abre a escolha do alcance (B7).</figcaption></figure><figure class="shot" data-twin><div class="ph t-light"><div class="scr"><div class="sbar"><span>9:41</span><span class="r"><svg class="ico s16"><use href="#i-sinal"/></svg><svg class="ico s18"><use href="#i-bat"/></svg></span></div><div class="tb"><span class="ib"><svg class="ico"><use href="#i-fechar"/></svg></span><span class="t">Teto do mês</span></div><div class="bd"><div class="over-r">Mês de 1 a 31 de outubro</div><div class="fld money foc" style="padding-top:6px"><label>Teto</label><div class="in" style="font-size:40px;min-height:58px"><span class="cur">R$</span>3.500<span class="cts">,00</span><span class="caret"></span></div><div class="hint"><span class="warn"><svg class="ico s16"><use href="#i-fora"/></svg><span>As cotas somam R$ 3.720,00: ficam <b class="num">R$ 220,00 além</b> deste teto. Nenhuma cota muda.</span></span></div></div><div style="margin-top:14px"><div class="tr tall" role="img" aria-label="Régua do teto"><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.3333;--k:var(--c1)"></i><i class="lot" style="--a:0.3333;--w:0.2500;--k:var(--c5)"></i><i class="lot" style="--a:0.5833;--w:0.1667;--k:var(--c2)"></i><i class="lot" style="--a:0.7500;--w:0.1250;--k:var(--c4)"></i><i class="lot" style="--a:0.8750;--w:0.0833;--k:var(--c3)"></i><i class="lot" style="--a:0.9583;--w:0.0417;--k:var(--c6)"></i></span><i class="over" style="--x:0.0629"></i></div></div></div><div class="axis num"><span>R$ 0</span><span class="t">teto 3.500</span><span class="x">+ 220</span></div><div class="tl3"><span>Cotas somam <span class="num">R$ 3.720,00</span></span><span class="ov">R$ 220,00 além do teto</span></div><div class="secline" style="margin-top:12px"><span class="over-r" style="color:var(--tinta)">Divisão do teto</span><span class="over-r">cota · parte</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c1)"></i>Mercado</span><span class="c num">R$ 1.240,00</span><span class="p num">35%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c5)"></i>Casa</span><span class="c num">R$ 930,00</span><span class="p num">27%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c2)"></i>Restaurantes</span><span class="c num">R$ 620,00</span><span class="p num">18%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c4)"></i>Lazer</span><span class="c num">R$ 465,00</span><span class="p num">13%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c3)"></i>Transporte</span><span class="c num">R$ 310,00</span><span class="p num">9%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c6)"></i>Farmácia</span><span class="c num">R$ 155,00</span><span class="p num">4%</span></div><div class="dv alem"><span class="n"><i class="id hz"></i>além do teto</span><span class="c num">R$ 220,00</span><span class="p num">6%</span></div></div><div class="dock" style="bottom:22px"><span class="btn sec">Tirar teto</span><span class="btn pri" style="flex:2">Salvar teto</span></div><div class="gbar" style="position:absolute;bottom:0;left:0;right:0"></div></div></div><figcaption><b>B6 · Mudar teto abaixo das cotas · <span class="cap-tema">claro</span></b>Aberta tocando no teto (aqui, R$ 4.500,00 → R$ 3.500,00). Enquanto digita, o aviso fica embaixo do campo: fato, número e consequência — “Nenhuma cota muda.” Não é erro (sem linha em lacre no campo): salvar é permitido. A divisão ganha a linha “além do teto”, hachurada. “Tirar teto” fica à esquerda do dock, como “Riscar” ao lado de “Lançar”.</figcaption></figure><figure class="shot" data-twin><div class="ph t-light"><div class="scr"><div class="sbar"><span>9:41</span><span class="r"><svg class="ico s16"><use href="#i-sinal"/></svg><svg class="ico s18"><use href="#i-bat"/></svg></span></div><div class="tb"><span class="ib"><svg class="ico"><use href="#i-fechar"/></svg></span><span class="t">Teto do mês</span></div><div class="bd"><div class="over-r">Mês de 1 a 31 de outubro</div><div class="fld money" style="padding-top:6px"><label>Teto</label><div class="in" style="font-size:40px;min-height:58px"><span class="cur">R$</span>3.500<span class="cts">,00</span></div><div class="hint"><span class="warn"><svg class="ico s16"><use href="#i-fora"/></svg><span>As cotas somam R$ 3.720,00: ficam <b class="num">R$ 220,00 além</b> deste teto. Nenhuma cota muda.</span></span></div></div><div style="margin-top:14px"><div class="tr tall" role="img" aria-label="Régua do teto"><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.3333;--k:var(--c1)"></i><i class="lot" style="--a:0.3333;--w:0.2500;--k:var(--c5)"></i><i class="lot" style="--a:0.5833;--w:0.1667;--k:var(--c2)"></i><i class="lot" style="--a:0.7500;--w:0.1250;--k:var(--c4)"></i><i class="lot" style="--a:0.8750;--w:0.0833;--k:var(--c3)"></i><i class="lot" style="--a:0.9583;--w:0.0417;--k:var(--c6)"></i></span><i class="over" style="--x:0.0629"></i></div></div></div><div class="axis num"><span>R$ 0</span><span class="t">teto 3.500</span><span class="x">+ 220</span></div><div class="tl3"><span>Cotas somam <span class="num">R$ 3.720,00</span></span><span class="ov">R$ 220,00 além do teto</span></div><div class="secline" style="margin-top:12px"><span class="over-r" style="color:var(--tinta)">Divisão do teto</span><span class="over-r">cota · parte</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c1)"></i>Mercado</span><span class="c num">R$ 1.240,00</span><span class="p num">35%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c5)"></i>Casa</span><span class="c num">R$ 930,00</span><span class="p num">27%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c2)"></i>Restaurantes</span><span class="c num">R$ 620,00</span><span class="p num">18%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c4)"></i>Lazer</span><span class="c num">R$ 465,00</span><span class="p num">13%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c3)"></i>Transporte</span><span class="c num">R$ 310,00</span><span class="p num">9%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c6)"></i>Farmácia</span><span class="c num">R$ 155,00</span><span class="p num">4%</span></div><div class="dv alem"><span class="n"><i class="id hz"></i>além do teto</span><span class="c num">R$ 220,00</span><span class="p num">6%</span></div></div><div class="dock" style="bottom:22px"><span class="btn sec">Tirar teto</span><span class="btn pri" style="flex:2">Salvar teto</span></div><div class="gbar" style="position:absolute;bottom:0;left:0;right:0"></div><div class="veil"><div class="dlg wide"><h4>Teto de R$ 3.500,00</h4><p>As cotas de outubro ficam R$ 220,00 além dele. Vale para quais meses?</p><div class="opts"><span class="opt"><b>De outubro em diante</b><small>Novembro e os próximos meses começam com este teto.</small></span><span class="opt"><b>Só outubro</b><small>Novembro volta ao teto de R$ 4.500,00.</small></span></div><div class="act"><span class="btn txt">Cancelar</span></div></div></div></div></div><figcaption><b>B7 · Salvar: só outubro ou em diante · <span class="cap-tema">claro</span></b>Ao salvar, um diálogo pergunta o alcance. As duas opções já são a ação — um toque, sem nenhuma pré-marcada — e cada uma diz o que acontece com novembro. O excesso é repetido no corpo, uma vez, sem pedir confirmação à parte. Depois, snackbar com Desfazer (ver Microcopy).</figcaption></figure><figure class="shot" data-twin><div class="ph t-light"><div class="scr"><div class="sbar"><span>9:41</span><span class="r"><svg class="ico s16"><use href="#i-sinal"/></svg><svg class="ico s18"><use href="#i-bat"/></svg></span></div><div class="tb"><span class="ib"><svg class="ico"><use href="#i-fechar"/></svg></span><span class="t">Teto do mês</span></div><div class="bd"><div class="over-r">Mês de 1 a 31 de outubro</div><div class="fld money" style="padding-top:6px"><label>Teto</label><div class="in" style="font-size:40px;min-height:58px"><span class="cur">R$</span>4.500<span class="cts">,00</span></div><div class="hint">Limite para a soma das cotas, não para o gasto: cada verba continua medida pela sua cota.</div></div><div style="margin-top:14px"><div class="tr tall" role="img" aria-label="Régua do teto"><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.2756;--k:var(--c1)"></i><i class="lot" style="--a:0.2756;--w:0.2067;--k:var(--c5)"></i><i class="lot" style="--a:0.4822;--w:0.1378;--k:var(--c2)"></i><i class="lot" style="--a:0.6200;--w:0.1033;--k:var(--c4)"></i><i class="lot" style="--a:0.7233;--w:0.0689;--k:var(--c3)"></i><i class="lot" style="--a:0.7922;--w:0.0344;--k:var(--c6)"></i></span></div></div></div><div class="axis num"><span>R$ 0</span><span class="t">teto 4.500</span><span class="x"></span></div><div class="tl3"><span>Cotas somam <span class="num">R$ 3.720,00</span></span><span>cabem R$ 780,00</span></div><div class="secline" style="margin-top:12px"><span class="over-r" style="color:var(--tinta)">Divisão do teto</span><span class="over-r">cota · parte</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c1)"></i>Mercado</span><span class="c num">R$ 1.240,00</span><span class="p num">28%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c5)"></i>Casa</span><span class="c num">R$ 930,00</span><span class="p num">21%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c2)"></i>Restaurantes</span><span class="c num">R$ 620,00</span><span class="p num">14%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c4)"></i>Lazer</span><span class="c num">R$ 465,00</span><span class="p num">10%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c3)"></i>Transporte</span><span class="c num">R$ 310,00</span><span class="p num">7%</span></div><div class="dv"><span class="n"><i class="id" style="background:var(--c6)"></i>Farmácia</span><span class="c num">R$ 155,00</span><span class="p num">3%</span></div><div class="dv livre"><span class="n"><i class="id vazio"></i>cabem</span><span class="c num">R$ 780,00</span><span class="p num">17%</span></div></div><div class="dock" style="bottom:22px"><span class="btn sec">Tirar teto</span><span class="btn pri" style="flex:2">Salvar teto</span></div><div class="gbar" style="position:absolute;bottom:0;left:0;right:0"></div><div class="veil"><div class="dlg wide"><h4>Tirar o teto?</h4><p>As cotas não mudam. Sem teto para quais meses?</p><div class="opts"><span class="opt"><b>De outubro em diante</b><small>Outubro e os próximos meses ficam sem teto.</small></span><span class="opt"><b>Só outubro</b><small>Novembro volta ao teto de R$ 4.500,00.</small></span></div><div class="act"><span class="btn txt">Cancelar</span></div></div></div></div></div><figcaption><b>B8 · Tirar o teto · <span class="cap-tema">claro</span></b>“Tirar teto” pergunta o mesmo alcance. “Tirar”, não “remover” nem “excluir”: português de rua, e nada se apaga — as cotas ficam como estão. Depois, Verbas volta ao estado B1 e o snackbar oferece Desfazer.</figcaption></figure></div></div>
+</section>
+
+<section class="sec b">
+  <aside class="mg"><div class="mg-in"><span class="no">B4</span><span class="tt">Criar verba ou subir cota</span>
+    <p class="nota"><b>Mesmo idioma</b>A régua do teto reaparece na tela da verba, com a cota nova a lápis. Aviso embaixo do campo enquanto digita; diálogo ao salvar; salva assim mesmo.</p>
+  </div></aside>
+  <div class="ct"><div class="shots"><figure class="shot" data-twin><div class="ph t-light"><div class="scr"><div class="sbar"><span>9:41</span><span class="r"><svg class="ico s16"><use href="#i-sinal"/></svg><svg class="ico s18"><use href="#i-bat"/></svg></span></div><div class="tb"><span class="ib"><svg class="ico"><use href="#i-fechar"/></svg></span><span class="t">Nova verba</span></div><div class="bd"><div class="fld"><label>Nome</label><div class="in">Presentes</div></div><div class="fld money foc" style="padding-top:10px"><label>Cota mensal</label><div class="in" style="font-size:40px;min-height:58px"><span class="cur">R$</span>310<span class="cts">,00</span><span class="caret"></span></div><div class="hint"><span class="warn"><svg class="ico s16"><use href="#i-fora"/></svg><span>Com esta cota, as cotas somam R$ 4.030,00: <b class="num">R$ 310,00 além</b> do teto.</span></span></div></div><div class="prev" style="display:block;margin-top:12px"><div style="display:flex;justify-content:space-between"><span class="over-r">Teto do mês</span><span class="over-r num" style="color:var(--tinta)">R$ 3.720,00</span></div><div style="margin-top:8px"><div class="tr" role="img" aria-label="Teto com a nova verba"><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.3077;--k:var(--c1)"></i><i class="lot" style="--a:0.3077;--w:0.2308;--k:var(--c5)"></i><i class="lot" style="--a:0.5385;--w:0.1538;--k:var(--c2)"></i><i class="lot" style="--a:0.6923;--w:0.1154;--k:var(--c4)"></i><i class="lot" style="--a:0.8077;--w:0.0769;--k:var(--c3)"></i><i class="lot" style="--a:0.8846;--w:0.0385;--k:var(--c6)"></i><i class="lot lapis" style="--a:0.9231;--w:0.0769"></i></span><i class="over" style="--x:0.0833"></i></div></div></div><p style="font:13px/1.35 'Source Sans 3';color:var(--tinta-3);margin-top:6px">A lápis, a nova cota. O teto não muda aqui; muda em Verbas.</p></div><div class="prev" style="display:block;margin-top:10px"><div class="over-r" style="margin-bottom:4px">Passos semanais de outubro</div><span style="font:500 17px 'Newsreader';color:var(--tinta)"><span class="num" style="white-space:nowrap">R$ 10,00</span> por dia · <span style="white-space:nowrap">semana cheia <span class="num">R$ 70,00</span></span></span><svg viewBox="0 0 270 46" style="width:100%;margin-top:8px">
+      <g font-family="Source Sans 3" font-size="11" font-weight="600" fill="var(--tinta)" text-anchor="middle" style="font-variant-numeric:tabular-nums"><text x="18.3" y="10">40</text><text x="65.9" y="10">70</text><text x="126.4" y="10">70</text><text x="186.9" y="10">70</text><text x="243.1" y="10">60</text></g>
+      <g stroke="var(--tinta)" stroke-width="1"><path d="M1 22H269"/><path d="M1 17v10M35.6 17v10M96.1 17v10M156.6 17v10M217.1 17v10M269 17v10"/></g>
+      <path d="M78.8 15v14" stroke="var(--argila)" stroke-width="2"/>
+      <g font-family="Source Sans 3" font-size="10.5" font-weight="600" fill="var(--tinta-2)" text-anchor="middle"><text x="18.3" y="41">1–4</text><text x="65.9" y="41">5–11</text><text x="126.4" y="41">12–18</text><text x="186.9" y="41">19–25</text><text x="243.1" y="41">26–31</text></g>
+    </svg></div></div><div class="dock" style="bottom:22px"><span class="btn pri full">Criar verba</span></div><div class="gbar" style="position:absolute;bottom:0;left:0;right:0"></div></div></div><figcaption><b>B9 · Nova verba além do teto · <span class="cap-tema">claro</span></b>Fora do cabeçalho, o mesmo idioma. Com teto de R$ 3.720,00 (B3), a cota de Presentes passa do teto: o aviso aparece embaixo do campo enquanto se digita, e a régua do teto mostra a nova cota a lápis (só contorno, ainda não é tinta) entrando na hachura. A mesma linha e a mesma régua aparecem ao subir uma cota em “Editar verba”.</figcaption></figure><figure class="shot" data-twin><div class="ph t-light"><div class="scr"><div class="sbar"><span>9:41</span><span class="r"><svg class="ico s16"><use href="#i-sinal"/></svg><svg class="ico s18"><use href="#i-bat"/></svg></span></div><div class="tb"><span class="ib"><svg class="ico"><use href="#i-fechar"/></svg></span><span class="t">Nova verba</span></div><div class="bd"><div class="fld"><label>Nome</label><div class="in">Presentes</div></div><div class="fld money foc" style="padding-top:10px"><label>Cota mensal</label><div class="in" style="font-size:40px;min-height:58px"><span class="cur">R$</span>310<span class="cts">,00</span></div><div class="hint"><span class="warn"><svg class="ico s16"><use href="#i-fora"/></svg><span>Com esta cota, as cotas somam R$ 4.030,00: <b class="num">R$ 310,00 além</b> do teto.</span></span></div></div><div class="prev" style="display:block;margin-top:12px"><div style="display:flex;justify-content:space-between"><span class="over-r">Teto do mês</span><span class="over-r num" style="color:var(--tinta)">R$ 3.720,00</span></div><div style="margin-top:8px"><div class="tr" role="img" aria-label="Teto com a nova verba"><div class="rl"><span class="lots"><i class="lot" style="--a:0.0000;--w:0.3077;--k:var(--c1)"></i><i class="lot" style="--a:0.3077;--w:0.2308;--k:var(--c5)"></i><i class="lot" style="--a:0.5385;--w:0.1538;--k:var(--c2)"></i><i class="lot" style="--a:0.6923;--w:0.1154;--k:var(--c4)"></i><i class="lot" style="--a:0.8077;--w:0.0769;--k:var(--c3)"></i><i class="lot" style="--a:0.8846;--w:0.0385;--k:var(--c6)"></i><i class="lot lapis" style="--a:0.9231;--w:0.0769"></i></span><i class="over" style="--x:0.0833"></i></div></div></div><p style="font:13px/1.35 'Source Sans 3';color:var(--tinta-3);margin-top:6px">A lápis, a nova cota. O teto não muda aqui; muda em Verbas.</p></div><div class="prev" style="display:block;margin-top:10px"><div class="over-r" style="margin-bottom:4px">Passos semanais de outubro</div><span style="font:500 17px 'Newsreader';color:var(--tinta)"><span class="num" style="white-space:nowrap">R$ 10,00</span> por dia · <span style="white-space:nowrap">semana cheia <span class="num">R$ 70,00</span></span></span><svg viewBox="0 0 270 46" style="width:100%;margin-top:8px">
+      <g font-family="Source Sans 3" font-size="11" font-weight="600" fill="var(--tinta)" text-anchor="middle" style="font-variant-numeric:tabular-nums"><text x="18.3" y="10">40</text><text x="65.9" y="10">70</text><text x="126.4" y="10">70</text><text x="186.9" y="10">70</text><text x="243.1" y="10">60</text></g>
+      <g stroke="var(--tinta)" stroke-width="1"><path d="M1 22H269"/><path d="M1 17v10M35.6 17v10M96.1 17v10M156.6 17v10M217.1 17v10M269 17v10"/></g>
+      <path d="M78.8 15v14" stroke="var(--argila)" stroke-width="2"/>
+      <g font-family="Source Sans 3" font-size="10.5" font-weight="600" fill="var(--tinta-2)" text-anchor="middle"><text x="18.3" y="41">1–4</text><text x="65.9" y="41">5–11</text><text x="126.4" y="41">12–18</text><text x="186.9" y="41">19–25</text><text x="243.1" y="41">26–31</text></g>
+    </svg></div></div><div class="dock" style="bottom:22px"><span class="btn pri full">Criar verba</span></div><div class="gbar" style="position:absolute;bottom:0;left:0;right:0"></div><div class="veil"><div class="dlg wide"><h4>Criar além do teto?</h4><p>Com Presentes, as cotas de outubro somam R$ 4.030,00: R$ 310,00 além do teto. O teto não muda.</p><div class="act"><span class="btn txt">Voltar</span><span class="btn txt" style="color:var(--tinta)">Criar mesmo assim</span></div></div></div></div></div><figcaption><b>B10 · Confirmar ao criar · <span class="cap-tema">claro</span></b>Criar pede confirmação num diálogo, com o fato em reais. “Criar mesmo assim” ecoa “Lançar mesmo assim” (8.4): a decisão é da pessoa. Ao subir uma cota: “Subir a cota de Lazer?” · “Salvar mesmo assim”.</figcaption></figure></div></div>
+</section>
+
+<section class="sec b">
+  <aside class="mg"><div class="mg-in"><span class="no">B5</span><span class="tt">Microcopy</span>
+    <p class="nota"><b>Evitar</b>limite geral, orçamento total, renda, saldo, “disponível”, “livre”, “estourou”, “excedeu”.</p>
+  </div></aside>
+  <div class="ct">
+<div class="tblw"><table class="tbl">
+  <thead><tr><th>Onde</th><th>Texto</th><th>Por quê</th></tr></thead>
+  <tbody>
+    <tr><td>Verbas · sem teto</td><td class="serif">Cotas somam R$ 3.720,00 · sem teto &nbsp;<i>[Definir teto]</i></td><td>Fato antes de convite. “Sem teto” é o estado, não uma falta.</td></tr>
+    <tr><td>Verbas · rubrica</td><td class="serif">Teto do mês · R$ 4.500,00 ›</td><td>“Do mês” vale para qualquer dia de início (mês de 5 out a 4 nov).</td></tr>
+    <tr><td>Abaixo</td><td class="serif">Cotas somam R$ 3.720,00 · cabem R$ 780,00</td><td>“Cabem”, não “sobram” (sobra é da margem) nem “livre”/“disponível”.</td></tr>
+    <tr><td>No teto</td><td class="serif">no teto</td><td>Paralelo a “no ritmo”. Sem celebração.</td></tr>
+    <tr><td>Acima</td><td class="serif"><span style="color:var(--lacre)">R$ 220,00 além do teto</span></td><td>Excesso em reais, com “além” (voz 7.1).</td></tr>
+    <tr><td>Campo · ajuda</td><td class="serif">Limite para a soma das cotas, não para o gasto: cada verba continua medida pela sua cota.</td><td>Desfaz a confusão mais provável na primeira vez.</td></tr>
+    <tr><td>Campo · teto abaixo</td><td class="serif">As cotas somam R$ 3.720,00: ficam R$ 220,00 além deste teto. Nenhuma cota muda.</td><td>Aviso, não erro: sem linha em lacre no campo.</td></tr>
+    <tr><td>Diálogo · salvar</td><td class="serif">Teto de R$ 3.500,00 — Vale para quais meses? [De outubro em diante] [Só outubro]</td><td>Nome do mês, não “este mês”: como “edições de passo de outubro em diante” (8.6).</td></tr>
+    <tr><td>Diálogo · tirar</td><td class="serif">Tirar o teto? — As cotas não mudam.</td><td>“Tirar”, não “remover”/“excluir”: nada se apaga.</td></tr>
+    <tr><td>Nova verba · campo</td><td class="serif">Com esta cota, as cotas somam R$ 4.030,00: R$ 310,00 além do teto.</td><td>Mostra a consequência enquanto digita.</td></tr>
+    <tr><td>Nova verba · diálogo</td><td class="serif">Criar além do teto? [Voltar] [Criar mesmo assim]</td><td>Ecoa “Lançar mesmo assim”. Editar cota: “Salvar mesmo assim”.</td></tr>
+  </tbody>
+</table></div>
+<div class="stack" style="gap:12px;max-width:420px;margin-top:20px">
+  <div class="snack"><span class="t">Teto de R$ 4.500,00, de outubro em diante.</span><span class="btn txt">Desfazer</span></div>
+  <div class="snack"><span class="t">Teto de R$ 3.500,00 só em outubro.</span><span class="btn txt">Desfazer</span></div>
+  <div class="snack"><span class="t">Outubro em diante sem teto.</span><span class="btn txt">Desfazer</span></div>
+  <p class="cap" style="margin:0">Snackbar depois de salvar ou tirar: confirma o efeito e o alcance; Desfazer por 6 s.</p>
+</div>
+
+    <h4 class="min">Decisões que esta proposta deixa abertas</h4>
+    <table class="tbl"><tbody>
+      <tr><td>Ordem dos lotes: da maior cota (proposta) ou a mesma ordem da lista.</td></tr>
+      <tr><td>Mostrar a soma das cotas quando não há teto (proposta: sim, em tinta 3) ou só “Definir teto”.</td></tr>
+      <tr><td>A parte de cada verba em % só na tela do teto (proposta) ou também em cada linha de Verbas.</td></tr>
+      <tr><td>“Só outubro” devolve novembro ao teto padrão anterior (ou a sem teto, se não havia).</td></tr>
+    </tbody></table>
+  </div>
+</section>
+
+</main>
+<script>
+(function(){
+  var r=document.documentElement,b=document.getElementById('tema'),lbl=b.querySelector('span');
+  function set(t){r.setAttribute('data-theme',t);lbl.textContent=t==='dark'?'Ler no claro':'Ler no escuro';try{localStorage.setItem('margem-teto-b',t)}catch(e){}}
+  var s=null;try{s=localStorage.getItem('margem-teto-b')}catch(e){}
+  set(s||(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+  b.addEventListener('click',function(){set(r.getAttribute('data-theme')==='dark'?'light':'dark')});
+  document.querySelectorAll('[data-twin]').forEach(function(n){
+    var c=n.cloneNode(true);c.removeAttribute('data-twin');
+    c.querySelectorAll('.t-light').forEach(function(e){e.classList.remove('t-light');e.classList.add('t-dark')});
+    c.querySelectorAll('.cap-tema').forEach(function(e){e.textContent='escuro'});
+    n.parentNode.insertBefore(c,n.nextSibling);
+  });
+})();
+</script>
+</body>
+</html>
