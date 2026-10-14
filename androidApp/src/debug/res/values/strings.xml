@@ -1,0 +1,4 @@
+<resources>
+    <!-- Debug builds: Margem-Dev, next to the release Margem (package id + ".dev"). -->
+    <string name="app_name">Margem-Dev</string>
+</resources>

@@ -20,7 +20,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 private const val TAG = "NoticeListener"
-private const val OWN_PACKAGE = "com.kaiodelphino.margem"
 
 /**
  * Anotação automática (D25): every notification posted on the device reaches here once the person
@@ -75,7 +74,7 @@ class NoticeListener : NotificationListenerService() {
  * notifications without any text. Texts are trimmed; extras become JSON.
  */
 fun rawNotice(sbn: StatusBarNotification, appLabel: String): RawNotice? {
-    if (sbn.packageName == OWN_PACKAGE) return null
+    if (sbn.packageName == BuildConfig.APPLICATION_ID) return null
     val n = sbn.notification
     if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return null
     if (n.flags and Notification.FLAG_FOREGROUND_SERVICE != 0) return null

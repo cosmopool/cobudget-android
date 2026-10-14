@@ -47,7 +47,9 @@ android {
     }
 
     buildTypes {
+        // Margem-Dev: its own package id and name, so it installs next to the release build.
         debug {
+            applicationIdSuffix = ".dev"
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
