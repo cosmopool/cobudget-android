@@ -462,15 +462,19 @@ private fun StepperKey(sign: String, enabled: Boolean, tag: String, onClick: () 
     contentAlignment = Alignment.Center,
 ) { Text(sign, sans(20f, 500, 24f), color = if (enabled) Margem.colors.ink else Margem.colors.inkTertiary) }
 
-/** Book `.days`: the seven days, the chosen one in ink ("Semana começa na"). */
+/**
+ * Book `.days`: the seven days, the chosen one in ink and `selected` ("Semana começa na"). [tag]: each day
+ * is "$tag" + its DayOfWeek name in lowercase (D35).
+ */
 @Composable
-fun DayPicker(selected: DayOfWeek, onSelect: (DayOfWeek) -> Unit, modifier: Modifier = Modifier) {
+fun DayPicker(selected: DayOfWeek, onSelect: (DayOfWeek) -> Unit, modifier: Modifier = Modifier, tag: String = "") {
     val c = Margem.colors
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         for (d in DayOfWeek.entries) {
             val on = d == selected
             Box(
-                Modifier.size(38.dp, 48.dp).clickable(role = Role.RadioButton) { onSelect(d) }.padding(vertical = 2.dp)
+                Modifier.size(38.dp, 48.dp).then(if (tag.isEmpty()) Modifier else Modifier.testTag("$tag${d.name.lowercase()}"))
+                    .semantics { this.selected = on }.clickable(role = Role.RadioButton) { onSelect(d) }.padding(vertical = 2.dp)
                     .background(if (on) c.ink else Color.Transparent, RoundedCornerShape(3.dp))
                     .border(1.dp, if (on) c.ink else c.rule, RoundedCornerShape(3.dp)),
                 contentAlignment = Alignment.Center,

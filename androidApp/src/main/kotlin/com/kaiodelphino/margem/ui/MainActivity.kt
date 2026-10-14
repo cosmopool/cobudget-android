@@ -50,7 +50,6 @@ import com.kaiodelphino.margem.widgets.SnackHost
 import com.kaiodelphino.margem.widgets.SnackbarHost
 import com.kaiodelphino.margem.widgets.Tab
 import com.kaiodelphino.margem.widgets.TabBar
-import com.kaiodelphino.margem.widgets.TopBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -79,6 +78,10 @@ sealed interface Screen {
     data object NewTransaction : Screen
     data object Dismissed : Screen
     data object Sources : Screen
+    data object Tags : Screen
+    data object StartDays : Screen
+    data object Backup : Screen
+    data object Cobudget : Screen
 }
 
 private fun encode(s: Screen): String = when (s) {
@@ -96,6 +99,10 @@ private fun encode(s: Screen): String = when (s) {
     Screen.NewTransaction -> "new"
     Screen.Dismissed -> "dismissed"
     Screen.Sources -> "sources"
+    Screen.Tags -> "tags"
+    Screen.StartDays -> "startDays"
+    Screen.Backup -> "backup"
+    Screen.Cobudget -> "cobudget"
 }
 
 /** The inverse of [encode]; anything unknown is Verbas. */
@@ -115,6 +122,10 @@ private fun decode(s: String): Screen {
         "new" -> Screen.NewTransaction
         "dismissed" -> Screen.Dismissed
         "sources" -> Screen.Sources
+        "tags" -> Screen.Tags
+        "startDays" -> Screen.StartDays
+        "backup" -> Screen.Backup
+        "cobudget" -> Screen.Cobudget
         else -> Screen.Budgets
     }
 }
@@ -128,7 +139,7 @@ private fun tabOf(s: Screen): Tab = when (s) {
     Screen.Inbox, is Screen.Post, is Screen.Refund -> Tab.INBOX
     Screen.Transactions, is Screen.Edit, Screen.NewTransaction -> Tab.TRANSACTIONS
     Screen.Insights -> Tab.INSIGHTS
-    Screen.Settings, Screen.Dismissed, Screen.Sources -> Tab.SETTINGS
+    Screen.Settings, Screen.Dismissed, Screen.Sources, Screen.Tags, Screen.StartDays, Screen.Backup, Screen.Cobudget -> Tab.SETTINGS
     Screen.Budgets, is Screen.Budget, Screen.NewBudget, is Screen.EditBudget -> Tab.BUDGETS
 }
 
@@ -228,8 +239,11 @@ fun App(db: Db, tabRequest: Screen?, onTabOpened: () -> Unit) {
                 is Screen.Refund -> RefundScreen(db, screen.estorno, snack, replace, back)
                 is Screen.Edit -> EditTransaction(db, screen.id, snack, go, back)
                 Screen.NewTransaction -> NewTransaction(db, snack, go, back)
-                // Block 5: Riscados.
-                Screen.Dismissed -> TopBar("", onBack = back)
+                Screen.Dismissed -> Dismissed(db, back)
+                Screen.Tags -> Tags(db, back)
+                Screen.StartDays -> StartDays(db, back)
+                Screen.Backup -> BackupScreen(db, snack, back)
+                Screen.Cobudget -> CobudgetScreen(db, back)
             }
             SnackbarHost(snack, Modifier.align(Alignment.BottomCenter))
         }

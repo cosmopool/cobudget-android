@@ -42,7 +42,7 @@ private const val MAX_INSTALLMENTS = 400
  * @param timeZone used to read a notice's date and time when its text has none.
  */
 class Db(
-    private val driver: SQLiteDriver,
+    internal val driver: SQLiteDriver,
     private val path: String,
     private val onWrite: () -> Unit = {},
     private val timeZone: TimeZone = TimeZone.currentSystemDefault(),
@@ -225,6 +225,13 @@ class Db(
             setSetting(c, "week_start", day.isoDayNumber.toString())
         }
     }
+
+    /**
+     * Would [setMonthStartDay] ([monthStartDay]) followed by [setWeekStart] ([weekStart]) delete any step
+     * edit? Reads only (spec §4, D41): the screen asks before saving when true. False when neither changes,
+     * when [monthStartDay] is outside 1..31, or when no edit falls at or after the cut those two would use.
+     */
+    suspend fun startDropsEdits(monthStartDay: Int, weekStart: DayOfWeek, today: LocalDate): Boolean = TODO()
 
     suspend fun setTheme(theme: Theme): Unit = write { setSetting(it, "theme", theme.name) }
 

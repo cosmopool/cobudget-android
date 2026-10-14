@@ -1,6 +1,6 @@
 # Margem — spec do produto
 
-Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (bloco 4, ciclo do recado: §2.5, §2.8, §2.10, §7.3, §7.4). O que está em §10 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (bloco 4, ciclo do recado: §2.5, §2.8, §2.10, §7.3, §7.4; bloco 5, Ajustes e importação: §4, §7.6). O que está em §10 espera resposta, uma por vez.
 Escopo: só produto (o quê e por quê). Implementação: [architecture.md](architecture.md).
 Vocabulário: [glossary.md](glossary.md). Identidade visual: [design_system.html](design_system.html).
 
@@ -61,7 +61,7 @@ Uma **visualização** de quanto cabe por semana. Não é limite e não muda com
 - Edições valem para aquele mês daquela verba. Mudar a cota redistribui só as semanas não editadas.
   Se a cota nova ficar abaixo da soma dos passos editados de um mês (do atual em diante), as edições daquele mês são apagadas e todas as semanas voltam ao automático.
   O app **avisa antes** (Confirmar/Cancelar) quando a cota nova vai apagar edições; sem aviso quando nada é apagado.
-- **Mudar o dia de início da semana ou do mês** apaga as edições de passo do mês atual em diante; o app avisa antes. Meses passados são recalculados com o dia novo.
+- **Mudar o dia de início da semana ou do mês** apaga as edições de passo do mês atual em diante; o app avisa antes (Cancelar/Mudar) quando há edição a apagar, e muda direto quando não há. Meses passados são recalculados com o dia novo.
 
 ## 5. Ritmo
 
@@ -143,13 +143,13 @@ Cinco abas: **Verbas** (início) · **Pauta** · **Lançamentos** · **Leitura**
 
 ### 7.6 Ajustes
 - Fontes (quais apps são anotados).
-- Riscados (trazer recados de volta à Pauta).
-- Marcadores (renomear, juntar, apagar — §2.9).
-- Dia de início do mês e dia de início da semana (§4: apaga edições de passo do mês atual em diante).
+- **Riscados**: os recados riscados, mais recentes no topo; **Trazer de volta** devolve o recado à Pauta na hora, sem Desfazer (se foi engano, risca de novo na Pauta).
+- **Marcadores** (§2.9): lista com quantos lançamentos usam cada um. Tocar abre o nome para renomear; se o nome digitado já é de outro marcador, o botão vira **Juntar com …** e os lançamentos passam para ele. **Apagar** pede confirmação num diálogo que diz quantos lançamentos ficam sem marcador e somem (os recados deles voltam à Pauta).
+- **Dia de início do mês e dia de início da semana**, numa tela própria: o dia e a semana são rascunho até **Salvar**. Salvar avisa antes quando vai apagar edições de passo (§4).
 - Tema: sistema (padrão) · claro · escuro. Vale também para os widgets.
 - Ordem do widget de Verbas: risco (padrão) · manual · A–Z.
-- Backup (exportar / importar).
-- Importar do cobudget (uma vez): traz recados, fontes, marcadores e apelidos de um backup do app antigo; recados repetidos não entram. Lançamentos antigos não têm verba, então os recados deles voltam à Pauta.
+- **Backup**: exportar grava uma cópia do banco num arquivo escolhido pela pessoa. Importar **restaura** o backup inteiro no lugar dos dados atuais: pede confirmação num diálogo antes; arquivo que não é backup do Margem é recusado com aviso, sem mudar nada.
+- **Importar do cobudget**: traz **só os recados** de um backup da última versão do app antigo; fontes, marcadores, apelidos e lançamentos não vêm. Os riscados lá entram em Riscados; os outros, inclusive os que tinham lançamento, entram na Pauta, para lançar ou riscar. Recados repetidos (mesma regra da anotação automática) não entram, por isso importar de novo não duplica nada. A tela diz quantos entraram na Pauta, quantos em Riscados e quantos não entraram. Arquivo que não é backup do cobudget é recusado com aviso, sem mudar nada.
 
 ## 8. Widgets
 

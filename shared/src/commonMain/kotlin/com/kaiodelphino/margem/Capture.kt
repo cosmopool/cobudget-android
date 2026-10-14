@@ -35,6 +35,36 @@ suspend fun capture(db: Db, raw: RawNotice): Boolean {
     }
 }
 
+/**
+ * Importar do cobudget (spec §7.6, D3, D4, D40): adds the notices of the cobudget backup at [path] to
+ * [db]. Only notices: sources, tags, nicknames, transactions and the genda outbox are not read.
+ *
+ * Refused (`CobudgetImport(opened = false)`, nothing written, [db] untouched) unless [path] is an SQLite
+ * file with `PRAGMA user_version` = 7 and a `captured_notifications` table with the columns below. The
+ * file is only read.
+ *
+ * Each row, in postedAt order (then id), becomes a [RawNotice]: packageName, appLabel, notificationKey →
+ * key, postedAt, notificationWhen → whenMs, title, text, bigText, subText, textLines, category,
+ * channelId, extrasJson; NULL text is "". Its `contentHash` and `id` are ignored: the hash is recomputed
+ * (D32). Then the rules of [capture], except the source one (notices of apps that are not sources enter
+ * too): no text at all, or a re-post of a notice already in [db] or imported before it in this same
+ * call, is skipped. A notice that enters keeps the cobudget's `dismissed` (1 = Riscados, 0 = pending;
+ * a transaction it had in the cobudget doesn't matter).
+ *
+ * One write for the whole file: bumps `version` once when something entered. Importing the same file
+ * again adds nothing (every notice is a re-post).
+ *
+ * The cobudget schema v7 table read (Room; the other tables of the file are ignored):
+ * ```sql
+ * CREATE TABLE `captured_notifications` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+ *   `packageName` TEXT NOT NULL, `appLabel` TEXT NOT NULL, `notificationKey` TEXT NOT NULL,
+ *   `postedAt` INTEGER NOT NULL, `notificationWhen` INTEGER NOT NULL DEFAULT 0, `title` TEXT, `text` TEXT,
+ *   `bigText` TEXT, `subText` TEXT, `textLines` TEXT, `category` TEXT, `channelId` TEXT,
+ *   `extrasJson` TEXT NOT NULL, `contentHash` TEXT NOT NULL, `dismissed` INTEGER NOT NULL DEFAULT 0)
+ * ```
+ */
+suspend fun importCobudget(db: Db, path: String): CobudgetImport = TODO()
+
 /** SHA-256 of the parts, each as its byte length (4 bytes, big-endian) then its UTF-8 bytes, as lowercase hex (D32). */
 internal fun contentHash(parts: List<String>): String {
     var size = 0

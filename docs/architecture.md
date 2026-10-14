@@ -1,6 +1,6 @@
 # Margem — arquitetura
 
-Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33; bloco 2 do `androidApp`, D1, D16, D23, D28, D33, §7; bloco 3, Verbas, D34–D35, §5–§7, §10; bloco 4, ciclo do recado, D36–D38, §4, §7, §9, §10). O que está em §11 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (KMP + UI nativa, D26–D31; bloco 1 do `shared`, D32–D33; bloco 2 do `androidApp`, D1, D16, D23, D28, D33, §7; bloco 3, Verbas, D34–D35, §5–§7, §10; bloco 4, ciclo do recado, D36–D38, §4, §7, §9, §10; bloco 5, Ajustes e importação, D3, D4, D14, D40–D41, §2, §7, §9, §10). O que está em §11 espera resposta, uma por vez.
 Produto: [spec.md](spec.md). Vocabulário: [glossary.md](glossary.md). Visual: [design_system.html](design_system.html).
 Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o miolo, testes de integração.
 
@@ -10,8 +10,8 @@ Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o
 |---|---|---|
 | D1 | **Projeto novo** no mesmo repo: os módulos `shared` e `androidApp` (D26) substituem `app/`, removido no bloco 2 (D33). applicationId `com.kaiodelphino.margem`. | App novo com id próprio. Sem comparação lado a lado com o cobudget, que não será mais usado; o histórico dele entra pela importação (D3, D4). |
 | D2 | Do código atual, entram **captura, dedupe e extração** (Nubank + genérico, `parseBrl`) e os casos de teste deles, adaptados. O resto é refeito. | É o código mais testado contra notificações reais. |
-| D3 | **Importação única** de um backup do cobudget (`.db`), em Ajustes. Traz recados, fontes, marcadores e apelidos. Lançamentos antigos não têm verba: os recados deles voltam à Pauta. | O histórico de recados não se perde. O importador é código descartável. |
-| D4 | A importação passa cada recado pela **mesma regra de dedupe da captura**. | Os dois apps capturam ao mesmo tempo; a mesma regra evita recados duplicados. |
+| D3 | **Importação de um backup do cobudget** (`.db` da última versão do schema dele, a 7), em Ajustes. Traz **só os recados** (`captured_notifications`): riscado lá (`dismissed = 1`) entra riscado; os outros entram pendentes, inclusive os que tinham lançamento. Fontes, marcadores, apelidos, lançamentos e `genda_outbox` ficam para trás. Pode ser repetida: o dedupe (D4) torna a repetição inofensiva. Outra versão, ou arquivo que não é do cobudget, é recusado sem escrever nada. Decidido no bloco 5. | O histórico de recados não se perde; o que a pessoa decidiu lá ela decide de novo no Margem, com verba. Só a v7 porque só a pessoa usou o cobudget, sempre atualizado. O importador é código descartável. |
+| D4 | A importação passa cada recado, em ordem de `postedAt`, pela **mesma regra de dedupe da captura** (mesma chave + conteúdo + `when` ≠ 0, ou o último da mesma chave com o mesmo conteúdo a menos de `DUPLICATE_WINDOW_MS`), contra o banco e contra os já importados, e descarta recado sem texto, como a captura. A regra de fonte da captura **não** vale: entram recados de apps que não são (mais) fonte. | Os dois apps capturam ao mesmo tempo; a mesma regra evita recados duplicados. O recado já foi anotado no cobudget: a fonte só decide o que se anota daqui em diante. |
 | D5 | **SQLite direto pela API KMP do `androidx.sqlite`** (`SQLiteDriver`, `SQLiteConnection`), SQL à mão, sem Room, SQLDelight ou KSP. | Sem código gerado: o que se lê é o que roda. Roda no `commonMain`. Os testes cobrem cada consulta. |
 | D6 | **Reatividade por um contador global**: `Db.version: StateFlow<Long>`, incrementado ao fim de toda escrita por um único `write { }`, que em seguida chama `onWrite` (D21). Única exceção: `ensureMonths` (D30). | Uma regra só, impossível de esquecer por tabela. As consultas são pequenas. |
 | D7 | **Uma linha por parcela**, cada uma com a sua **data** (compra + k−1 meses; se, com dia de início 29–31, essa data cair fora do k-ésimo mês, vai para o dia mais próximo dentro dele). À vista = 1 parcela; no máximo 400. | "Gasto do mês" vira um `SUM` sobre parcelas. A data permite mudar o dia de início do mês sem regravar nada. |
@@ -21,7 +21,7 @@ Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o
 | D11 | **Centavos dos passos**: todos são arredondados para baixo; a **última semana não editada** recebe a diferença. | A soma dos passos é sempre igual à cota. |
 | D12 | **O SQL lê, uma função Kotlin calcula**: `budgetMonth(...)` produz gasto, margem, passos, ritmo ideal, estado e projeção. `budgetMonth` e a extração são `internal` no `shared`: telas, widgets e Leitura recebem `BudgetMonth` e `Parsed` prontos do `Db` (`budgetsOverview`, `budgetDetail`, `pending`, `transaction`). | Fácil de testar e de depurar com breakpoint. Uma API pública só (o `Db`), sem duas formas de chegar ao mesmo número. |
 | D13 | **Ajustes e fontes em tabelas** do próprio SQLite. | Entram no backup e na mesma reatividade: mudar o início do mês recalcula tudo. |
-| D14 | **Backup = cópia do arquivo do banco**, feita no `shared` com `kotlinx-io`: exportar = `VACUUM INTO` o caminho dado; importar fecha o escritor e os leitores, substitui o arquivo (apagando `-wal`/`-shm`), reabre, migra e incrementa `version`. A escolha do arquivo (SAF) fica no `androidApp`, que entrega um caminho local. | Sem formato próprio para manter; o mesmo código nos dois apps e nos testes da JVM. |
+| D14 | **Backup = cópia do arquivo do banco**, feita no `shared` com `kotlinx-io`: exportar = `VACUUM INTO` o caminho dado; importar fecha o escritor e os leitores, substitui o arquivo (apagando `-wal`/`-shm`), reabre, migra e incrementa `version`. A escolha do arquivo (SAF) fica no `androidApp`, que entrega um caminho local. Na tela, importar pede confirmação num diálogo antes de chamar `importFrom` (bloco 5). | Sem formato próprio para manter; o mesmo código nos dois apps e nos testes da JVM. |
 | D15 | **UI em Compose Foundation, sem Material 3.** Tokens do book num objeto `Margem` e cerca de 10 componentes próprios. | Fiel ao book, sem desligar padrões do Material. |
 | D16 | **Fontes variáveis empacotadas** em `res/font`, 4 arquivos do `google/fonts` (OFL): Newsreader e Newsreader Italic (`opsz`, `wght`), Source Sans 3 e Source Sans 3 Italic (`wght`). Cada estilo do book vira um `Font` com `FontVariation` (`wght` e, na Newsreader, `opsz` = corpo em sp, limitado a 6–72). Pesos do book: Newsreader 300–600 e itálico 400/500; Source Sans 3 400–700. | Funciona offline desde o primeiro uso, inclusive nos widgets. Um arquivo por família e estilo cobre todos os pesos, e o eixo óptico faz o mesmo desenho ficar robusto pequeno e fino grande, como no book. |
 | D17 | **Gráficos em Canvas próprio**, um Composable por gráfico. | São 4 gráficos simples, no estilo do book; sem dependência. |
@@ -46,6 +46,8 @@ Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o
 | D37 | **Datas de 0001-01-01 a 9999-12-31**: lançar, lançamento manual e editar recusam o formulário quando alguma parcela cai fora desse intervalo (decidido na triagem do bloco 4). Nas leituras, os limites de um mês são presos ao intervalo, para um mês que o atravessa (dezembro de 9999 com início no dia 15) achar as suas parcelas. | Datas são texto ISO (§3), que só ordena como data nos anos 0001–9999: "+10000-01-31" viria antes de "0001-01-01". Recusar na fronteira mantém o texto ordenável sem migrar o schema. |
 | D38 | **Id de lançamento nunca é reaproveitado** (`AUTOINCREMENT`), como o de verba. Os dois estão direto no schema v1, sem migração: ninguém usou o app ainda. Decidido na triagem do bloco 4. | Apagar o lançamento mais novo e criar outro reaproveitaria o id: uma edição aberta, ou restaurada depois de o processo morrer, abriria outro lançamento. |
 | D39 | **Build de debug é o Margem-Dev**: applicationId com sufixo `.dev` (`com.kaiodelphino.margem.dev`) e nome `Margem-Dev` (`src/debug/res`), assinado pela chave de debug do repo. O build de release, `com.kaiodelphino.margem`, é assinado pela chave de release, fora do repo (caminho e senhas em `local.properties`). | Os dois convivem no mesmo celular, cada um com seus dados e seu acesso às notificações; um APK assinado com a chave de debug, que é pública, nunca substitui o app de verdade. |
+| D40 | **Importador do cobudget no `shared`**: `importCobudget(db, path): CobudgetImport`, público, em `Capture.kt` ao lado do dedupe. Lê o `.db` antigo numa conexão própria do mesmo driver (`Db.driver` vira `internal`) e grava tudo numa **escrita só** (um incremento de `version`, um `onWrite`). Devolve quantos entraram pendentes, quantos riscados e quantos ficaram de fora (repetidos ou sem texto); `opened = false` quando o arquivo é recusado. Sem mudança no schema do Margem (v1). O `androidApp` só copia o arquivo do SAF para um caminho local (`Backup.kt`); some o `Import.kt`. Decidido no bloco 5. | Uma transação: milhares de recados não viram milhares de escritas e de `updateAll` nos widgets. Testado na JVM com SQLite real (D23), como o resto do `Db`. |
+| D41 | **Aviso do início do mês e da semana só quando apaga algo**: `startDropsEdits(monthStartDay, weekStart, today)` diz se `setMonthStartDay(monthStartDay)` seguido de `setWeekStart(weekStart)` apagaria alguma edição de passo (mesmo corte das duas, D10), sem gravar. A tela de Ajustes junta os dois num rascunho e grava os dois no Salvar. Decidido no bloco 5. | Mesma regra do aviso de cota (`limitDropsEdits`): sem aviso quando nada é apagado. O rascunho evita uma escrita (e um aviso) por toque no stepper. |
 | D33 | **Encerrada no bloco 2**: `app/` (cobudget) ficou no build até o bloco do `androidApp` e foi removido no começo dele; o build é `:shared` + `:androidApp`. O que ainda serve de base (listener, `loadLauncherApps`, casos do `CaptureTest`) é lido do histórico (`git show 7616cd2:app/...`). | O cobudget não será mais usado. A importação do backup `.db` dele (D3, D4) continua e não depende do código de `app/`. |
 
 ## 2. Componentes
@@ -54,7 +56,7 @@ Estilo: Codin' Dirty (CLAUDE.md): poucas camadas, funções grandes onde está o
 androidApp                                          shared
 ──────────                                          ──────
 NotificationListenerService ─RawNotice─► capture() ──┐
-Import (backup cobudget) ──────────────► importOld ──┤
+Ajustes › cobudget (SAF → caminho) ───► importCobudget ┤
 Telas (Compose) ──ações──────────────────────────────┼──► Db.write { } ──► SQLite (margem.db, WAL)
                                                      │       │   (escritor, Mutex)
                                                      │       ├─► version++ ──► telas reconsultam
@@ -212,6 +214,10 @@ sealed interface Screen {
     data object NewTransaction : Screen                   // lançamento manual
     data object Dismissed : Screen                        // Riscados
     data object Sources : Screen                          // Ajustes › Fontes
+    data object Tags : Screen                             // Ajustes › Marcadores
+    data object StartDays : Screen                        // Ajustes › Início do mês e da semana
+    data object Backup : Screen                           // Ajustes › Backup
+    data object Cobudget : Screen                         // Ajustes › Importar do cobudget
 }
 ```
 
@@ -238,9 +244,9 @@ Pacote Kotlin `com.kaiodelphino.margem` nos dois módulos. Namespace Android: `c
 
 | Arquivo | Conteúdo |
 |---|---|
-| `Db.kt` | Escritor + leitores (D29), schema, migrações, `write { }`, `read { }`, `version`, `onWrite`, `ensureMonths`, todas as consultas e escritas, exportar/importar (D14). Verbas (bloco 3): `createBudget`, `renameBudget`, `setLimit`, `limitDropsEdits`, `deleteBudget`, `reorderBudgets`, `setStep`, `clearStep`, `budgetsOverview`, `budgetDetail` (com `lines` e `firstMonth`), `previewBudget`. Ciclo do recado (bloco 4): `transactions(today)` com `TransactionRow.now` (a parcela do mês de hoje), `previewRefund`. |
+| `Db.kt` | Escritor + leitores (D29), schema, migrações, `write { }`, `read { }`, `version`, `onWrite`, `ensureMonths`, todas as consultas e escritas, exportar/importar (D14). Verbas (bloco 3): `createBudget`, `renameBudget`, `setLimit`, `limitDropsEdits`, `deleteBudget`, `reorderBudgets`, `setStep`, `clearStep`, `budgetsOverview`, `budgetDetail` (com `lines` e `firstMonth`), `previewBudget`. Ciclo do recado (bloco 4): `transactions(today)` com `TransactionRow.now` (a parcela do mês de hoje), `previewRefund`. Ajustes (bloco 5): `startDropsEdits` (D41). |
 | `Types.kt` | Value classes, `RawNotice`, `Parsed`, `PaceStatus`, ajustes e linhas de leitura. |
-| `Capture.kt` | `capture(db, raw)`, dedupe (usado também pela importação, D4), SHA-256 (D32). |
+| `Capture.kt` | `capture(db, raw)`, dedupe (usado também pela importação, D4), SHA-256 (D32), `importCobudget(db, path)` (D3, D40). |
 | `Extract.kt` | Leitura de valor/estabelecimento/data (`internal`); `parseBrl` (público). |
 | `Month.kt` | `budgetMonth()`, janela do mês, limite da edição de passo, ordem por risco (`internal`). |
 
@@ -250,10 +256,9 @@ Pacote Kotlin `com.kaiodelphino.margem` nos dois módulos. Namespace Android: `c
 |---|---|
 | `MargemApp.kt` | `Application`: cria o `Db` (driver, caminho, `onWrite` → Glance). |
 | `NoticeListener.kt` | `NotificationListenerService`: `StatusBarNotification` → `RawNotice` → `capture()`. |
-| `Backup.kt` | Exportar/importar o `.db` via SAF. |
-| `Import.kt` | Importação única do cobudget (descartável): abre o `.db` antigo com o mesmo driver e passa cada recado pelo dedupe. |
+| `Backup.kt` | Cópia entre um `Uri` do SAF e um arquivo local: exportar (`exportTo` num arquivo temporário → `Uri`), importar o backup e o `.db` do cobudget (`Uri` → arquivo temporário → `importFrom` / `importCobudget`). |
 | `ui/MainActivity.kt` | Activity, `Screen`, navegação, `query()`. |
-| `ui/Budgets.kt` · `ui/Inbox.kt` · `ui/Transactions.kt` · `ui/Insights.kt` · `ui/Settings.kt` | Uma por aba, com suas sub-telas. `Inbox.kt`: Pauta e Registrar estorno (`InboxTags`). `Transactions.kt`: Lançamentos e o formulário único de lançar/editar/manual (`TransactionTags`). |
+| `ui/Budgets.kt` · `ui/Inbox.kt` · `ui/Transactions.kt` · `ui/Insights.kt` · `ui/Settings.kt` | Uma por aba, com suas sub-telas. `Inbox.kt`: Pauta e Registrar estorno (`InboxTags`). `Transactions.kt`: Lançamentos e o formulário único de lançar/editar/manual (`TransactionTags`). `Settings.kt`: Ajustes e as sub-telas Fontes, Riscados, Marcadores, Início do mês e da semana, Backup e Importar do cobudget (`SettingsTags`). |
 | `ui/HomeWidgets.kt` | Os dois widgets de home screen (Glance). |
 | `widgets/Theme.kt` · `widgets/Components.kt` | Tokens e componentes do book. |
 
@@ -267,12 +272,12 @@ Dependências:
 ## 10. Testes
 
 - **Regra** (D23): integração pela API pública; unitário só em `budgetMonth`, extração e SHA-256.
-- **Banco** (`shared/commonTest`, rodando em `jvmTest`, SQLite em arquivo temporário por teste, D23): captura → Pauta → lançar → mês da verba; riscar e trazer de volta; estorno de lançamento e de recado; parcelas atravessando meses; virada (`ensureMonths` cria a linha de cota, preenche meses pulados e não incrementa `version`); mudar dia de início (edições descartadas); apagar verba e marcador; leitura durante escrita (D29); backup e reabertura; importação do cobudget com dedupe.
+- **Banco** (`shared/commonTest`, rodando em `jvmTest`, SQLite em arquivo temporário por teste, D23): captura → Pauta → lançar → mês da verba; riscar e trazer de volta; estorno de lançamento e de recado; parcelas atravessando meses; virada (`ensureMonths` cria a linha de cota, preenche meses pulados e não incrementa `version`); mudar dia de início (edições descartadas); apagar verba e marcador; leitura durante escrita (D29); backup e reabertura; importação do cobudget com dedupe (o `.db` antigo é criado no teste com o schema v7 do cobudget, que o KDoc de `importCobudget` traz).
 - **`budgetMonth`** (`commonTest`): semanas parciais, passos editados e bloqueios, centavos, dia de início 29–31, verba criada no meio do mês, estados e projeção.
 - **Extração** (`commonTest`): os casos atuais de `ExtractTest`/`CaptureTest`, portados para `RawNotice`.
 - **Android** (`androidApp`, Robolectric, `Db` com `AndroidSQLiteDriver`, D28): conversão `StatusBarNotification` → `RawNotice` → `capture` → `pending()`; UI Compose: fluxo de lançar (verba + marcador obrigatórios, parcelas, prévia) e editor de passos.
 - **Rodada de 4 agentes** sobre o contrato fechado (tipos + assinaturas com KDoc, corpos `TODO()`), em paralelo com a implementação, cada um num worktree e num arquivo: **borda** (`EdgeTest`), **fuzz** (`FuzzTest`, seed fixa e tempo limitado), **concorrência e ciclo de vida** (`ConcurrencyTest`), **invariantes** (`InvariantsTest`, sequências aleatórias de ações checando §5). Só veem spec, glossário, arquitetura e contrato. Cada falha é triada pela spec: bug no código → corrige o código; teste que leu a spec errado → corrige o teste, com o porquê. Teste nunca é afrouxado para passar.
-- **Rodada em todo bloco**: o bloco 2 ficou sem rodada (o contrato novo era só `rawNotice`). Do bloco 3 em diante, toda rodada cobre os acréscimos do `shared` **e a UI**: as telas entram no contrato como stubs `TODO()` com o objeto de tags (D35), e o teste de UI roda com Robolectric + Compose UI test e `AndroidSQLiteDriver` (D28); o teste instrumentado não roda no worktree de um agente. Os arquivos do bloco levam o prefixo dele (`BudgetsEdgeTest`, …; no bloco 4, `Recado…`). No bloco 4 o contrato de UI é `InboxTags`, `TransactionTags` e `DateTimeTags` (D35, D36).
+- **Rodada em todo bloco**: o bloco 2 ficou sem rodada (o contrato novo era só `rawNotice`). Do bloco 3 em diante, toda rodada cobre os acréscimos do `shared` **e a UI**: as telas entram no contrato como stubs `TODO()` com o objeto de tags (D35), e o teste de UI roda com Robolectric + Compose UI test e `AndroidSQLiteDriver` (D28); o teste instrumentado não roda no worktree de um agente. Os arquivos do bloco levam o prefixo dele (`BudgetsEdgeTest`, …; no bloco 4, `Recado…`). No bloco 4 o contrato de UI é `InboxTags`, `TransactionTags` e `DateTimeTags` (D35, D36). No bloco 5 os arquivos levam o prefixo `Ajustes…`, o contrato de UI é `SettingsTags`, e a escolha de arquivo (SAF) entra no teste por um `ActivityResultRegistryOwner` próprio (`LocalActivityResultRegistryOwner`) que devolve o `Uri` de um arquivo temporário.
 - O alvo `iosSimulatorArm64Test` existe, mas fica fora do loop da v1.
 
 ## 11. Em aberto

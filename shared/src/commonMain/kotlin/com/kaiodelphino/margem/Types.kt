@@ -87,6 +87,20 @@ data class Settings(
     val pautaSeenAt: Long = 0,
 )
 
+/**
+ * What [importCobudget] did (spec §7.6, D3, D40). [opened] = false: the file was refused (not a cobudget
+ * backup of schema version 7) and nothing was written; every count is then 0.
+ */
+data class CobudgetImport(
+    val opened: Boolean = false,
+    /** Notices that entered as pending (not dismissed in the cobudget). */
+    val pending: Int = 0,
+    /** Notices that entered as dismissed (Riscados): dismissed in the cobudget. */
+    val dismissed: Int = 0,
+    /** Notices left out: re-posts by the capture dedupe (D4), or without any text. */
+    val skipped: Int = 0,
+)
+
 /** An app whose notifications become notices. */
 data class Source(val packageName: String = "", val label: String = "", val addedAt: Long = 0)
 
