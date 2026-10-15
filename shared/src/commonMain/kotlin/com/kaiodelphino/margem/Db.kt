@@ -202,15 +202,24 @@ class Db(
     /**
      * Changes the month start day (1..31; false otherwise). Deletes the step edits from the start
      * of [today]'s month onward, by the old or the new day, whichever is earlier (spec §4, D10).
-     * The day already set changes nothing.
+     * Every budget keeps a limit in [today]'s new month: the one of the old current month, unless it
+     * already had one there (D43). The day already set changes nothing.
      */
     suspend fun setMonthStartDay(day: Int, today: LocalDate): Boolean {
         if (day !in 1..31) return false
         write { c ->
             val old = settings(c).monthStartDay
             if (old != day) {
-                val cut = minOf(monthWindow(monthOf(today, old), old).start, monthWindow(monthOf(today, day), day).start)
+                val was = monthOf(today, old)
+                val now = monthOf(today, day)
+                val cut = minOf(monthWindow(was, old).start, monthWindow(now, day).start)
                 c.exec("DELETE FROM week_steps WHERE week_start >= ?", cut.low())
+                // ensureMonths only fills forward: a current month that moved back would leave out the budgets created after it.
+                for (id in c.query("SELECT id FROM budgets") { it.getLong(0) }) ensureMonth(c, id, was)
+                c.exec(
+                    "INSERT OR IGNORE INTO budget_months(budget_id, month, limit_cents) SELECT budget_id, ?, limit_cents FROM budget_months WHERE month = ?",
+                    now.toString(), was.toString(),
+                )
                 setSetting(c, "month_start_day", day.toString())
             }
         }

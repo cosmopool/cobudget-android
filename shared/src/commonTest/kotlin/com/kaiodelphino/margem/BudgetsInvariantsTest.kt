@@ -68,7 +68,10 @@ private class BudgetsInvariantRun(val db: Db, val seed: Int) {
     var step = 0
     var today = BINV_START
     val names = LinkedHashMap<BudgetId, String>()
-    /** BudgetDetail.firstMonth as read right after createBudget: it must never move afterwards. */
+    /**
+     * BudgetDetail.firstMonth as read right after createBudget. Only setMonthStartDay moves it: back to
+     * today's new month when that is earlier (D43).
+     */
     val firstMonths = HashMap<BudgetId, YearMonth>()
     /** Expected manual order: creation appends (createBudget KDoc), an accepted reorderBudgets replaces it. */
     var manual = ArrayList<BudgetId>()
@@ -190,8 +193,8 @@ private class BudgetsInvariantRun(val db: Db, val seed: Int) {
      */
     suspend fun setLimitAction() {
         val m0 = monthNow()
-        // A budget whose first month is after today's month (possible after a month start day change)
-        // is left out: whether setLimit creates a row before its first month is not specified.
+        // A budget whose first month is after today's month is left out: whether setLimit creates a row
+        // before its first month is not specified (setMonthStartDay no longer leaves one, D43).
         val eligible = manual.filter { firstMonths.getValue(it) <= m0 }
         val unknown = eligible.isEmpty() || rnd.nextInt(12) == 0
         val id = if (unknown) gone.randomOrNull(rnd) ?: BINV_UNKNOWN else eligible.random(rnd)
@@ -368,9 +371,19 @@ private class BudgetsInvariantRun(val db: Db, val seed: Int) {
 
     suspend fun setMonthStartDayAction() {
         val day = 1 + rnd.nextInt(31)
+        val was = monthNow()
+        db.ensureMonths(was)
+        val limits = manual.associateWith { db.budgetDetail(it, was, today).month.limit }
         val ok = db.setMonthStartDay(day, today)
         log("setMonthStartDay $day -> $ok")
         assertTrue(ok, "setMonthStartDay($day)")
+        // D43: a budget without a limit in today's new month gets the one it had in the old current month.
+        val now = monthNow()
+        for (id in manual) {
+            if (firstMonths.getValue(id) <= now) continue
+            firstMonths[id] = now
+            assertEquals(limits.getValue(id), db.budgetDetail(id, now, today).month.limit, "D43: budget ${id.v} keeps its limit in $now")
+        }
     }
 
     suspend fun setWeekStartAction() {
@@ -482,7 +495,7 @@ private class BudgetsInvariantRun(val db: Db, val seed: Int) {
         assertEquals(id, d.id, "$what: detail id")
         assertEquals(names[id], d.name, "$what: detail name")
         assertEquals(s.name, d.name, "$what: overview name == detail name")
-        assertEquals(firstMonths[id], d.firstMonth, "$what: firstMonth fixed at creation")
+        assertEquals(firstMonths[id], d.firstMonth, "$what: firstMonth fixed at creation, or moved back by setMonthStartDay (D43)")
         assertTrue(d.firstMonth <= m, "$what: firstMonth ${d.firstMonth} ≤ a month with a limit")
         val bm = d.month
         assertEquals(s.month, bm, "$what: overview month == detail month")

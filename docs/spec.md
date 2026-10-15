@@ -1,6 +1,6 @@
 # Margem — spec do produto
 
-Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (bloco 4, ciclo do recado: §2.5, §2.8, §2.10, §7.3, §7.4; bloco 5, Ajustes e importação: §4, §7.6; teto: §3, §7.1, §10). O que está em §10 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (bloco 4, ciclo do recado: §2.5, §2.8, §2.10, §7.3, §7.4; bloco 5, Ajustes e importação: §4, §7.6; teto: §3, §7.1, §10; início do mês sem sumir verba: §3). O que está em §10 espera resposta, uma por vez.
 Escopo: só produto (o quê e por quê). Implementação: [architecture.md](architecture.md).
 Vocabulário: [glossary.md](glossary.md). Identidade visual: [design_system.html](design_system.html).
 
@@ -35,6 +35,7 @@ O estorno não é crédito: é só o registro de que uma compra não conta (§6)
 - **Verba**: nome + **cota mensal**. Cada lançamento pertence a exatamente uma verba.
 - **Mês da verba**: começa no **dia de início do mês**, escolhido em Ajustes, o mesmo para todas as verbas (padrão: dia 1).
   Vai do dia D até a véspera do dia D do mês seguinte. Se D não existe no mês (29–31), usa o último dia.
+- **Mudar o dia de início não tira verba do mês atual**: se o mês atual passa a ser outro (ex.: dia 1 → 15 em 14 out volta para o mês que começou em 15 set), cada verba fica nele com a cota que tinha no mês atual de antes; se já tinha cota nele, fica a que estava.
 - **Mudar a cota** vale do **mês atual em diante**. Cada mês guarda a cota que valia nele; a Leitura compara cada mês com a sua.
 - **Virada**: a cota recomeça inteira todo mês. Sobra e excesso não passam para o mês seguinte; ficam só no histórico.
 - **Teto** (opcional; sem teto por padrão): valor máximo para a **soma das cotas** do mês (ex.: a renda). É limite de planejamento, não de gasto: o gasto continua medido por verba, e não existe margem, ritmo ou estado do total.

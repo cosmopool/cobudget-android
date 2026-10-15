@@ -515,6 +515,29 @@ class DbTest {
     }
 
     @Test
+    fun `a start day after today keeps every budget in the current month with its limit`() = runTest {
+        val mercado = setUp()
+        val casa = db.createBudget("Casa", Cents(100000), LocalDate(2026, 9, 6))
+        assertTrue(db.setLimit(casa, Cents(150000), OCT_6))
+        suspend fun current(): List<Pair<String, Long>> {
+            val month = db.monthOf(OCT_6)
+            db.ensureMonths(month)
+            return db.budgetsOverview(month, OCT_6, BudgetOrder.AZ).map { it.name to it.month.limit.v }
+        }
+
+        // The 15th is after Oct 6: the current month goes back to Sep 15 – Oct 14.
+        assertTrue(db.setMonthStartDay(15, OCT_6))
+        assertEquals(YearMonth(2026, 9), db.monthOf(OCT_6))
+        // Mercado had no September: it gets October's limit and September becomes its first month.
+        // Casa already had a September limit, which stays.
+        assertEquals(listOf("Casa" to 100000L, "Mercado" to 60000L), current())
+        assertEquals(YearMonth(2026, 9), db.budgetDetail(mercado, YearMonth(2026, 9), OCT_6).firstMonth)
+
+        assertTrue(db.setMonthStartDay(1, OCT_6))
+        assertEquals(listOf("Casa" to 150000L, "Mercado" to 60000L), current())
+    }
+
+    @Test
     fun `deleting a budget or a tag sends their notices back to the Pauta`() = runTest {
         db.addSource(NUBANK, "Nu", 0)
         val a = db.createBudget("Casa", Cents(10000), OCT_6)
