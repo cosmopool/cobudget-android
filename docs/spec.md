@@ -1,6 +1,6 @@
 # Margem — spec do produto
 
-Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (bloco 4, ciclo do recado: §2.5, §2.8, §2.10, §7.3, §7.4; bloco 5, Ajustes e importação: §4, §7.6; teto: §3, §7.1, §10; início do mês sem sumir verba: §3); em 2026-10-16 (bloco 6, Leitura: §7.5). O que está em §10 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (bloco 4, ciclo do recado: §2.5, §2.8, §2.10, §7.3, §7.4; bloco 5, Ajustes e importação: §4, §7.6; teto: §3, §7.1, §10; início do mês sem sumir verba: §3); em 2026-10-16 (bloco 6, Leitura: §7.5; cabeçalho do teto: §7.1, §10). O que está em §10 espera resposta, uma por vez.
 Escopo: só produto (o quê e por quê). Implementação: [architecture.md](architecture.md).
 Vocabulário: [glossary.md](glossary.md). Identidade visual: [design_system.html](design_system.html).
 
@@ -104,7 +104,14 @@ Cinco abas: **Verbas** (início) · **Pauta** · **Lançamentos** · **Leitura**
 
 ### 7.1 Verbas
 - Lista das verbas do mês atual: nome, régua (gasto, marca do ritmo ideal, cota), margem, estado.
-- **Cabeçalho com o teto** (§3): soma das cotas do mês atual contra o teto; tocar edita o teto. Desenho em aberto (§10).
+- **Cabeçalho com o teto** (§3): desenho do book, [8.10 Cabeçalho do teto](design_system.html) e tela 10.1: chapéu, "Dia 9 de 31.", linha fina e, embaixo, o fio do teto com a legenda. O teto não ganha frase na manchete.
+  - **Fio do teto**: régua sem ritmo; trilho em fio forte, cotas em tinta (não é gasto: sem cor de estado), fio duplo de argila no teto, os mesmos 9% reservados ao excesso, em hachura.
+  - **Legenda**: "cotas R$ 3.720,00 · teto R$ 4.100,00"; acima do teto, "+ 300" em lacre na faixa reservada; teto só deste mês, "teto R$ 4.400,00 · só outubro".
+  - **Sem teto**: o fio pontilhado, "As cotas somam R$ 3.720,00." e o link "Pôr um teto". Sem verbas, a linha some.
+  - **Toque**: do chapéu à legenda, um alvo só, que abre o teto. Leitor de tela: "Teto de outubro: R$ 4.100,00. Cotas somam R$ 3.720,00, a R$ 380,00 do teto. Tocar para mudar." (no teto: "fecham no teto"; acima: "R$ 300,00 além do teto").
+  - **Diálogo**: "Teto de outubro", campo "Máximo para a soma das cotas", dica ao digitar ("As cotas de outubro somam R$ 3.720,00: ficam a R$ 680,00 do teto." / "…: ficariam R$ 220,00 além do teto. Dá para salvar assim."), ação "Tirar teto". Salvar pergunta "Vale para quais meses?": "De outubro em diante" · "Só em outubro" ("Em novembro, volta a R$ 4.100,00." ou "volta a não ter teto"); tocar a opção salva. Tirar pergunta "Tirar o teto de quais meses?", com as mesmas opções.
+  - **Snackbar** com Desfazer: "Teto de R$ 4.400,00 só em outubro." · "Teto de R$ 4.400,00 de outubro em diante." · "Outubro em diante sem teto."
+  - **Nova verba / cota**: sob o campo, "Com esta cota, as cotas de outubro somam R$ 4.400,00: R$ 300,00 além do teto."; ao salvar, "Passar do teto?" · Voltar · "Criar mesmo assim" / "Salvar mesmo assim".
 - **Ordenar**: seletor no topo — **risco** (padrão; mesma regra do widget, §8.1) · **manual** (arrastar) · **A–Z**. A escolha é lembrada.
 - Criar verba: nome + cota mensal, com a prévia dos passos semanais do mês atual.
 - **Detalhe da verba**: seletor de mês (do primeiro mês da verba até o atual); régua; passos semanais (editáveis, com "Voltar ao automático", §4); lançamentos do mês com a soma corrida e a marca "cota atingida aqui" (parcelada conta a parcela do mês; estornada aparece riscada e não soma); editar nome e cota; apagar.
@@ -193,4 +200,4 @@ Tocar em qualquer ponto abre a aba correspondente (Verbas ou Pauta).
 
 | # | Questão |
 |---|---|
-| S1 | Desenho do cabeçalho de Verbas com o teto (§7.1): sem teto, abaixo, no teto, acima e a edição. Três propostas: [A, tipográfico](mockups/teto-a-tipografia.html) · [B, régua do teto](mockups/teto-b-regua.html) · [C, manchete](mockups/teto-c-manchete.html). Recomendação: **B**, o único em que o teto mostra para onde vão as cotas (§1); A é um número sem proporção, C põe um dado de planejamento no lugar da notícia do dia. |
+| — | Nada em aberto. |

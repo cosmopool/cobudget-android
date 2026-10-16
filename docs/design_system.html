@@ -422,6 +422,22 @@ p.tx.serif{font:400 19px/1.6 'Newsreader'}
   .attr{grid-template-columns:repeat(2,minmax(0,1fr))}
   .attr div{border-right:0;border-bottom:1px solid var(--fio);padding-left:0!important}
 }
+/* ---------- 8.10 teto: cabeçalho de Verbas ---------- */
+.hdr{margin:0 -12px;padding:2px 12px 8px;border-radius:6px;cursor:pointer}
+.hdr.press{background:var(--folha-2)}
+.meter.teto{margin-top:10px}
+.meter.teto .rail{height:10px}
+.meter.teto .rail::before{top:4px;height:1px;background:var(--fio-forte)}
+.meter.teto .fill{top:3px;height:3px;background:var(--tinta);border-radius:0}
+.meter.teto .over{top:2px;height:5px}
+.meter.teto.ov .fill{width:100%}
+.tlab{display:flex;align-items:baseline;gap:8px;font:600 12px/1.2 'Source Sans 3';color:var(--tinta-3);margin-top:5px;padding-right:9%;position:relative}
+.tlab .tt{margin-left:auto;transform:translateX(5px)}
+.tlab .pl{color:var(--lacre);min-width:30px;text-align:right}
+.tlab.ov{padding-right:0}.tlab.ov .tt{transform:none}
+.tsem{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;border-top:1px dotted var(--fio-forte);font:13.5px/1.3 'Source Sans 3';color:var(--tinta-3);min-height:44px}
+.tsem .btn{margin-right:-12px;min-height:44px}
+
 @media (max-width:960px){
   .sec{grid-template-columns:minmax(0,1fr);row-gap:24px}
   .mg-in{position:static}
@@ -1479,6 +1495,31 @@ p.tx.serif{font:400 19px/1.6 'Newsreader'}
         <p class="cap">Hora impossível: a linha fica em lacre, a mensagem diz o intervalo e “Pronto” não fecha. “Cancelar”, voltar ou tocar fora fecham sem mudar nada.</p>
       </div>
     </div>
+
+    <h3 class="sub"><span class="k">8.10</span>Cabeçalho do teto</h3>
+    <p class="intro">O teto (opcional) é o máximo para a <b>soma das cotas</b> do mês: limite de planejamento, não de gasto. Não ganha cartão nem frase própria: a manchete continua sendo do dia, e sob a linha fina o fio do cabeçalho vira a medida — tinta para as cotas, fio duplo de argila no teto, hachura só no que passa. O total não tem margem, ritmo nem estado: nada de musgo, ocre ou selo.</p>
+    <div class="cols-2" style="gap:24px;align-items:start">
+      <div class="stage t-light"><div class="hdr" role="button"><div class="over-r">Mês de 1 a 31 de outubro</div><h3 class="hl">Dia 9 de 31.</h3><p class="dek">Faltam 23 dias, contando hoje.</p><div class="meter teto" style="--g:0.907;--x:0"><div class="rail"><i class="fill"></i></div></div><div class="tlab num"><span>cotas R$ 3.720,00</span><span class="tt">teto R$ 4.100,00</span></div></div></div>
+      <div style="font-size:14px;color:var(--tinta-2);display:grid;gap:10px">
+        <div><b style="color:var(--argila)">1 · Chapéu, manchete, linha fina</b><br>Não mudam com o teto: “Dia 9 de 31.” situa o dia, como sem teto.</div>
+        <div><b style="color:var(--argila)">2 · Fio do teto</b><br>Régua sem ritmo: trilho em fio forte, cotas em tinta (não é gasto, então não usa cor de estado), fio duplo de argila no teto, os mesmos 9% reservados ao excesso.</div>
+        <div><b style="color:var(--argila)">3 · Legenda</b><br>“cotas R$ 3.720,00” à esquerda, “teto R$ 4.100,00” sob o fio duplo; acima do teto, “+ 300” em lacre na faixa reservada, como em 10.8.</div>
+        <div><b style="color:var(--argila)">4 · Toque</b><br>Do chapéu à legenda, um alvo só; pressionado, a superfície escurece (folha 2). Abre o teto.</div>
+      </div>
+    </div>
+    <div class="tblw" style="margin-top:16px"><table class="tbl">
+      <thead><tr><th style="width:18%">Situação</th><th style="width:46%">Cabeçalho</th><th>Regra</th></tr></thead>
+      <tbody>
+        <tr><td>Sem teto</td><td><div class="stage t-light" style="padding:12px 16px"><div class="hdr" role="button"><div class="over-r">Mês de 1 a 31 de outubro</div><h3 class="hl">Dia 9 de 31.</h3><p class="dek">Faltam 23 dias, contando hoje.</p><div class="tsem"><span class="num">As cotas somam R$ 3.720,00.</span><span class="btn txt sm">Pôr um teto</span></div></div></div></td><td>Padrão. O fio fica pontilhado — o lugar do teto, vazio — com a soma das cotas e o link de texto “Pôr um teto”. Sem cor de alerta, ícone ou contador. Sem verbas, a linha some.</td></tr>
+        <tr><td>Abaixo</td><td><div class="stage t-light" style="padding:12px 16px"><div class="hdr" role="button"><div class="over-r">Mês de 1 a 31 de outubro</div><h3 class="hl">Dia 9 de 31.</h3><p class="dek">Faltam 23 dias, contando hoje.</p><div class="meter teto" style="--g:0.907;--x:0"><div class="rail"><i class="fill"></i></div></div><div class="tlab num"><span>cotas R$ 3.720,00</span><span class="tt">teto R$ 4.100,00</span></div></div></div></td><td>A tinta mostra a proporção das cotas; o trilho vazio até o fio duplo é a distância até o teto.</td></tr>
+        <tr><td>No teto</td><td><div class="stage t-light" style="padding:12px 16px"><div class="hdr" role="button"><div class="over-r">Mês de 1 a 31 de outubro</div><h3 class="hl">Dia 9 de 31.</h3><p class="dek">Faltam 23 dias, contando hoje.</p><div class="meter teto" style="--g:1;--x:0"><div class="rail"><i class="fill"></i></div></div><div class="tlab num"><span>cotas R$ 4.100,00</span><span class="tt">teto R$ 4.100,00</span></div></div></div></td><td>A tinta encosta no fio duplo. Sem selo, sem parabéns.</td></tr>
+        <tr><td>Acima</td><td><div class="stage t-light" style="padding:12px 16px"><div class="hdr" role="button"><div class="over-r">Mês de 1 a 31 de outubro</div><h3 class="hl">Dia 9 de 31.</h3><p class="dek">Faltam 23 dias, contando hoje.</p><div class="meter teto ov" style="--g:1;--x:0.073"><div class="rail"><i class="fill"></i><i class="over"></i></div></div><div class="tlab num ov"><span>cotas R$ 4.400,00</span><span class="tt">teto R$ 4.100,00</span><span class="pl">+ 300</span></div></div></div></td><td>Passar do teto é permitido. Hachura em lacre na faixa reservada e o excesso em reais na legenda. Nenhuma verba muda de estado.</td></tr>
+        <tr><td>Só este mês</td><td><div class="stage t-light" style="padding:12px 16px"><div class="hdr" role="button"><div class="over-r">Mês de 1 a 31 de outubro</div><h3 class="hl">Dia 9 de 31.</h3><p class="dek">Faltam 23 dias, contando hoje.</p><div class="meter teto ov" style="--g:1;--x:0.073"><div class="rail"><i class="fill"></i><i class="over"></i></div></div><div class="tlab num ov"><span>cotas R$ 4.400,00</span><span class="tt">teto R$ 4.400,00 · só outubro</span></div></div></div></td><td>A legenda lembra que no mês seguinte volta o padrão, sem precisar abrir nada.</td></tr>
+      </tbody>
+    </table></div>
+    <p class="cap"><b>Leitor de tela</b>“Teto de outubro: R$ 4.100,00. Cotas somam R$ 3.720,00, a R$ 380,00 do teto. Tocar para mudar.” — no teto, “fecham no teto”; acima, “R$ 300,00 além do teto”. Diz a diferença em reais, nunca porcentagem.</p>
+    <p class="cap"><b>Mudar</b>Diálogo “Teto de outubro”, campo “Máximo para a soma das cotas”, com a dica ao digitar: “As cotas de outubro somam R$ 3.720,00: ficam a R$ 680,00 do teto.” / “…: ficariam R$ 220,00 além do teto. Dá para salvar assim.” Ação secundária “Tirar teto”. Salvar pergunta “Vale para quais meses?”: <b>De outubro em diante</b> (“Vira o teto dos próximos meses.”) · <b>Só em outubro</b> (“Em novembro, volta a R$ 4.100,00.” ou “volta a não ter teto”); tocar a opção já salva, “Voltar” retorna ao campo. Tirar pergunta “Tirar o teto de quais meses?”, com as mesmas opções. Snackbar com Desfazer: “Teto de R$ 4.400,00 só em outubro.” · “Teto de R$ 4.400,00 de outubro em diante.” · “Outubro em diante sem teto.”</p>
+    <p class="cap"><b>Nova verba e cota</b>Sob o campo, enquanto digita: “Com esta cota, as cotas de outubro somam R$ 4.400,00: R$ 300,00 além do teto.” Ao salvar, o diálogo “Passar do teto?” · Voltar · “Criar mesmo assim” (ou “Salvar mesmo assim”), eco de “Lançar mesmo assim”.</p>
   </div>
 </section>
 
@@ -1695,9 +1736,7 @@ p.tx.serif{font:400 19px/1.6 'Newsreader'}
           <div class="sbar"><span>9:41</span><span class="r"><svg class="ico s16"><use href="#i-sinal"/></svg><svg class="ico s18"><use href="#i-bat"/></svg></span></div>
           <div class="tb"><span class="wmk"><svg viewBox="0 0 48 48" width="22" height="22" style="--marca-tinta:var(--tinta);--marca-fio:var(--argila)"><use href="#marca"/></svg>margem</span><span class="ib" aria-label="Nova verba"><svg class="ico"><use href="#i-mais"/></svg></span></div>
           <div class="bd">
-            <div class="over-r">Mês de 1 a 31 de outubro</div>
-            <h3 class="hl">Dia 9 de 31.</h3>
-            <p class="dek">Faltam 23 dias, contando hoje.</p>
+            <div class="hdr" role="button"><div class="over-r">Mês de 1 a 31 de outubro</div><h3 class="hl">Dia 9 de 31.</h3><p class="dek">Faltam 23 dias, contando hoje.</p><div class="meter teto" style="--g:0.907;--x:0"><div class="rail"><i class="fill"></i></div></div><div class="tlab num"><span>cotas R$ 3.720,00</span><span class="tt">teto R$ 4.100,00</span></div></div>
             <div class="strip" style="margin-top:12px"><svg class="ico" style="margin-left:6px"><use href="#i-pauta"/></svg><span class="t">4 recados na pauta<small>3 novos desde a última vez</small></span><span class="ib"><svg class="ico"><use href="#i-avancar"/></svg></span></div>
             <div style="display:flex;align-items:center;gap:6px;margin-top:10px;border-bottom:1px solid var(--tinta)"><span class="over-r" style="color:var(--tinta)">Ordenar</span><div class="seg" style="flex:1;border:0"><span class="on" style="min-height:36px">risco</span><span style="min-height:36px">manual</span><span style="min-height:36px">A–Z</span></div></div>
             <div class="vr" style="padding:8px 0 7px"><div class="l1"><span class="nm"><i class="id" style="background:var(--c4)"></i>Lazer</span><span class="vv">R$ 477,00<small>de 465,00</small></span></div><div class="meter ov" style="--g:1;--p:.29;--x:.026"><div class="rail"><i class="fill"></i><i class="pace"></i><i class="over"></i></div></div><div class="l3"><span class="st ov">Fora da margem</span><span style="color:var(--lacre);font-weight:600">R$ 12,00 além</span></div></div>
@@ -1710,7 +1749,7 @@ p.tx.serif{font:400 19px/1.6 'Newsreader'}
           <nav class="navb"><a class="on" href="#telas"><svg class="ico"><use href="#i-verba"/></svg>Verbas</a><a href="#telas"><svg class="ico"><use href="#i-pauta"/></svg>Pauta<span class="bdg">4</span></a><a href="#telas"><svg class="ico"><use href="#i-lancamento"/></svg>Lançamentos</a><a href="#telas"><svg class="ico"><use href="#i-leitura"/></svg>Leitura</a><a href="#telas"><svg class="ico"><use href="#i-ajustes"/></svg>Ajustes</a></nav>
           <div class="gbar"></div>
         </div></div>
-        <figcaption><b>10.1 · Verbas · <span class="cap-tema">claro</span></b>Tela inicial. Cada verba vale por si: nome, régua (gasto, marca do ritmo ideal, cota), margem e estado — não há soma de todas. “Ordenar” no topo: risco (padrão, a mesma ordem do widget) · manual, arrastando · A–Z; a escolha é lembrada. A manchete só situa o dia no mês; a faixa da pauta é o único convite à ação. O “+” cria uma verba.</figcaption>
+        <figcaption><b>10.1 · Verbas · <span class="cap-tema">claro</span></b>Tela inicial. Cada verba vale por si: nome, régua (gasto, marca do ritmo ideal, cota), margem e estado — não há soma de todas. “Ordenar” no topo: risco (padrão, a mesma ordem do widget) · manual, arrastando · A–Z; a escolha é lembrada. A manchete só situa o dia no mês; a faixa da pauta é o único convite à ação. O “+” cria uma verba. Com teto (8.10), sob a linha fina o fio do teto mede a soma das cotas contra ele — aqui R$ 3.720,00 de R$ 4.100,00; sem teto, o fio pontilhado com “Pôr um teto”. Tocar no cabeçalho abre o teto.</figcaption>
       </figure>
 
       <!-- PAUTA -->
@@ -2071,6 +2110,7 @@ p.tx.serif{font:400 19px/1.6 'Newsreader'}
         <tr><td class="serif"><b>Estorno</b></td><td><code>Refund</code></td><td>Não é lançamento: registro de que uma compra não é somada na verba nem na Leitura (parcelada: todas as parcelas). Registrar = escolher a compra: um lançamento, ou um recado ainda não lançado. Pode ser desfeito (Desfazer na hora, ou Desfazer estorno na compra). Não pede verba nem marcador.</td><td>“Estorno · a compra de 2 out não conta mais”</td><td class="evitar">reembolso, crédito, cashback, valor negativo</td></tr>
         <tr><td class="serif"><b>Verba</b></td><td><code>Budget</code></td><td>Limite de gasto criado pela pessoa: nome + cota mensal. Cada lançamento pertence a exatamente uma verba.</td><td>“Nova verba”, “Verba Mercado”.</td><td class="evitar">orçamento, envelope, categoria, pote</td></tr>
         <tr><td class="serif"><b>Cota</b></td><td><code>MonthlyLimit</code></td><td>Quanto a verba permite gastar no mês. Mudar vale do mês atual em diante; cada mês guarda a sua.</td><td>“Cota de R$ 600,00 por mês.”</td><td class="evitar">meta, teto, limite (na interface)</td></tr>
+        <tr><td class="serif"><b>Teto</b></td><td><code>Ceiling</code></td><td>Valor máximo, opcional, para a soma das cotas do mês. Limite de planejamento, não de gasto; passar dele é permitido, com aviso. Mudar pergunta: só este mês ou deste mês em diante.</td><td>“R$ 300,00 além do teto.”</td><td class="evitar">renda, orçamento total, limite geral</td></tr>
         <tr><td class="serif"><b>Mês</b></td><td><code>BudgetMonth</code></td><td>Janela da cota: do dia de início do mês (Ajustes, igual para todas as verbas) até a véspera dele no mês seguinte.</td><td>“Mês de 5 out a 4 nov.”</td><td class="evitar">período, ciclo, competência</td></tr>
         <tr><td class="serif"><b>Virada</b></td><td><code>MonthRollover</code></td><td>Início de um novo mês; a cota recomeça inteira, sem levar sobra nem excesso.</td><td>“O mês recomeça no dia 5.”</td><td class="evitar">reset, zerar, renovação</td></tr>
         <tr><td class="serif"><b>Margem</b></td><td><code>Remaining</code></td><td>Cota − gasto do mês. É a métrica que dá nome ao app.</td><td>“Margem: R$ 163,80.” · “Sobram R$ 273,70.”</td><td class="evitar">saldo, disponível, restante</td></tr>
