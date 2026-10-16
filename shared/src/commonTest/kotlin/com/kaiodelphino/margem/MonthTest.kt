@@ -122,4 +122,21 @@ class MonthTest {
     private companion object {
         val NOV = YearMonth(2026, 11)
     }
+    @Test
+    fun `ideal by day follows the steps - R$ 310 in October is R$ 10 a day`() {
+        // Book 10.7: Oct 2026 from Monday, R$ 310 → steps 40 · 70 · 70 · 70 · 60, R$ 10 a day (spec §4, §5).
+        val oct = bm(month = YearMonth(2026, 10), limit = 31000, today = LocalDate(2026, 10, 9))
+        assertEquals((1..31).map { Cents(it * 1000L) }, oct.idealByDay)
+        assertEquals(oct.ideal, oct.idealByDay[8])
+    }
+
+    @Test
+    fun `ideal by day keeps an edited week and rounds down inside each week`() {
+        // Week 1–4 edited to R$ 20: R$ 290 left over 27 days → 7518 per full week, the last (26–31) 6446 (D11).
+        val oct = bm(month = YearMonth(2026, 10), limit = 31000, today = LocalDate(2026, 10, 9), edited = mapOf(LocalDate(2026, 10, 1) to 2000L))
+        assertEquals(Cents(1000), oct.idealByDay[1]) // day 2: 2000 × 2 ÷ 4
+        assertEquals(Cents(4148), oct.idealByDay[5]) // day 6: 2000 + 7518 × 2 ÷ 7 = 2000 + 2148
+        assertEquals(Cents(2000 + 7518 * 3), oct.idealByDay[24]) // day 25 closes the 4th week
+        assertEquals(Cents(31000), oct.idealByDay.last())
+    }
 }

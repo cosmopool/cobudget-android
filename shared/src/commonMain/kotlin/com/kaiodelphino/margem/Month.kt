@@ -99,14 +99,20 @@ internal fun budgetMonth(
         for (i in 0 until n) if (date <= ends[i]) { weekSpent[i] += cents.v; break }
     }
 
-    // Ritmo ideal: closed weeks whole, the current one by days elapsed (with today).
-    var ideal = 0L
-    for (i in 0 until n) {
-        when {
-            ends[i] < today -> ideal += steps[i]
-            starts[i] <= today -> ideal += steps[i] * (starts[i].daysUntil(today) + 1) / days[i]
+    // Ritmo ideal of a day: closed weeks whole, that day's week by days elapsed (with the day).
+    fun idealOn(day: LocalDate): Long {
+        var sum = 0L
+        for (i in 0 until n) {
+            when {
+                ends[i] < day -> sum += steps[i]
+                starts[i] <= day -> sum += steps[i] * (starts[i].daysUntil(day) + 1) / days[i]
+            }
         }
+        return sum
     }
+    val ideal = idealOn(today)
+    val idealByDay = ArrayList<Cents>(window.start.daysUntil(window.endInclusive) + 1)
+    for (d in window) idealByDay.add(Cents(idealOn(d)))
 
     val status = when {
         spent > limit.v -> PaceStatus.OVERRUN
@@ -135,7 +141,7 @@ internal fun budgetMonth(
         ideal = Cents(ideal),
         status = status,
         projection = Cents(projection),
-        idealByDay = emptyList(), // TODO block 6 (D44)
+        idealByDay = idealByDay,
     )
 }
 

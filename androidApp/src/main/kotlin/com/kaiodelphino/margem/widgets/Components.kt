@@ -688,7 +688,7 @@ fun StatusLabel(status: PaceStatus, modifier: Modifier = Modifier, empty: Boolea
 }
 
 /** Lacre hatch, -45°, with a 1 dp inset border (book `.over`, `.st.ov`). */
-private fun DrawScope.hatch(color: Color, at: Offset, area: Size, line: Float, period: Float) {
+internal fun DrawScope.hatch(color: Color, at: Offset, area: Size, line: Float, period: Float) {
     clipRect(at.x, at.y, at.x + area.width, at.y + area.height) {
         val step = period * sqrt(2f)
         var x = at.x - area.height

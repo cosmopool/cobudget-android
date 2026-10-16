@@ -379,7 +379,7 @@ class BudgetsEdgeTest {
             ),
             ideal = Cents(30000), status = PaceStatus.ON_PACE, projection = Cents(0),
         )
-        assertEquals(expected, preview)
+        assertEquals(expected, preview.withoutDaily())
 
         val id = db.budget("Mercado", 60000, sep15)
         assertEquals(preview, db.month(id, sep, sep15))
@@ -400,7 +400,7 @@ class BudgetsEdgeTest {
             ),
             ideal = Cents(0), status = PaceStatus.ON_PACE, projection = Cents(0),
         )
-        assertEquals(expected, preview)
+        assertEquals(expected, preview.withoutDaily())
         val id = db.budget("Centavo", 1, sep15)
         assertEquals(preview, db.month(id, sep, sep15))
     }
@@ -458,7 +458,7 @@ class BudgetsEdgeTest {
             ideal = Cents(11000), status = PaceStatus.ON_PACE, projection = Cents(0),
         )
         val preview = db.previewBudget(Cents(28000), feb10)
-        assertEquals(expected, preview)
+        assertEquals(expected, preview.withoutDaily())
 
         val id = db.budget("Mercado", 28000, feb10)
         val d = db.detail(id, ym(2027, 1), feb10)
@@ -499,7 +499,7 @@ class BudgetsEdgeTest {
                 ),
                 ideal = Cents(1000), status = PaceStatus.ON_PACE, projection = Cents(0),
             ),
-            db.previewBudget(Cents(29000), jan30),
+            db.previewBudget(Cents(29000), jan30).withoutDaily(),
         )
         // Feb 28 2027 starts 2027-02: Feb 28 .. Mar 29 (eve of Mar 30), 30 days.
         // Weeks: Sun Feb 28 (1) · Mar 1–7 · 8–14 · 15–21 · 22–28 · Mon Mar 29 (1). Ideal of Feb 28: 1000.
@@ -518,7 +518,7 @@ class BudgetsEdgeTest {
                 ),
                 ideal = Cents(1000), status = PaceStatus.ON_PACE, projection = Cents(0),
             ),
-            db.previewBudget(Cents(30000), feb28),
+            db.previewBudget(Cents(30000), feb28).withoutDaily(),
         )
     }
 
@@ -542,10 +542,10 @@ class BudgetsEdgeTest {
             ),
             ideal = Cents(31000), status = PaceStatus.ON_PACE, projection = Cents(0),
         )
-        assertEquals(jan, db.previewBudget(Cents(31000), feb28))
+        assertEquals(jan, db.previewBudget(Cents(31000), feb28).withoutDaily())
         val id = db.budget("Mercado", 31000, feb28)
         val d = db.detail(id, ym(2028, 1), feb28)
-        assertEquals(jan, d.month)
+        assertEquals(jan, d.month.withoutDaily())
         assertEquals(ym(2028, 1), d.firstMonth)
 
         // Feb 29 2028 starts 2028-02: Feb 29 .. Mar 28, 29 days.
@@ -564,7 +564,7 @@ class BudgetsEdgeTest {
                 ),
                 ideal = Cents(1000), status = PaceStatus.ON_PACE, projection = Cents(0),
             ),
-            db.previewBudget(Cents(29000), feb29),
+            db.previewBudget(Cents(29000), feb29).withoutDaily(),
         )
     }
 
@@ -586,9 +586,9 @@ class BudgetsEdgeTest {
             ),
             ideal = Cents(30000), status = PaceStatus.ON_PACE, projection = Cents(0),
         )
-        assertEquals(jan, db.previewBudget(Cents(30000), feb27))
+        assertEquals(jan, db.previewBudget(Cents(30000), feb27).withoutDaily())
         val id = db.budget("Mercado", 30000, feb27)
-        assertEquals(jan, db.month(id, ym(2027, 1), feb27))
+        assertEquals(jan, db.month(id, ym(2027, 1), feb27).withoutDaily())
 
         // 2027-02: Feb 28 .. Mar 28 (eve of Mar 29), 29 days: Sun Feb 28 (1) · Mar 1–7 · 8–14 · 15–21 · 22–28.
         // 30000 copied: 1 day → floor(30000/29) = 1034; 7 days → floor(210000/29) = 7241; last gets 30000 − 1034 − 3·7241 = 7243.
@@ -654,11 +654,11 @@ class BudgetsEdgeTest {
             ),
             ideal = Cents(26000), status = PaceStatus.ON_PACE, projection = Cents(0),
         )
-        assertEquals(expected, db.previewBudget(Cents(30000), oct15))
+        assertEquals(expected, db.previewBudget(Cents(30000), oct15).withoutDaily())
         val a = db.budget("A", 30000, oct15)
         val d = db.detail(a, ym(2026, 9), oct15)
         assertEquals(ym(2026, 9), d.firstMonth)
-        assertEquals(expected, d.month)
+        assertEquals(expected, d.month.withoutDaily())
 
         val oct20 = day(2026, 10, 20)
         val b = db.budget("B", 30000, oct20)
@@ -797,3 +797,6 @@ class BudgetsEdgeTest {
         const val BANK = "com.banco.teste"
     }
 }
+
+/** These expectations predate BudgetMonth.idealByDay (D44, block 6), which LeituraEdgeTest and MonthTest cover. */
+private fun BudgetMonth.withoutDaily() = copy(idealByDay = emptyList())
