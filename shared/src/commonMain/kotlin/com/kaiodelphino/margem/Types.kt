@@ -228,6 +228,14 @@ data class BudgetMonth(
     val status: PaceStatus = PaceStatus.ON_PACE,
     /** No passo atual; 0 when ideal is 0 (no projection). */
     val projection: Cents = Cents(0),
+    /**
+     * Ritmo ideal at the end of each day of the month (D44): one value per day from [start] to [end],
+     * index 0 = [start]. Day d = the rule of [ideal] with today = d (spec §5): steps of the weeks ended
+     * before d, plus the step of d's week × days elapsed in it (with d) ÷ its days, rounded down per
+     * week. Never decreases; the last day = Σ steps = [limit]. For
+     * today inside the month, idealByDay[today − start] == [ideal]. Empty when [start] is NO_DATE.
+     */
+    val idealByDay: List<Cents> = emptyList(),
 )
 
 data class BudgetSummary(val id: BudgetId = BudgetId(0), val name: String = "", val month: BudgetMonth = BudgetMonth())

@@ -1,6 +1,6 @@
 # Margem — spec do produto
 
-Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (bloco 4, ciclo do recado: §2.5, §2.8, §2.10, §7.3, §7.4; bloco 5, Ajustes e importação: §4, §7.6; teto: §3, §7.1, §10; início do mês sem sumir verba: §3). O que está em §10 espera resposta, uma por vez.
+Status: **decidido** em 2026-10-09; revisado em 2026-10-14 (bloco 4, ciclo do recado: §2.5, §2.8, §2.10, §7.3, §7.4; bloco 5, Ajustes e importação: §4, §7.6; teto: §3, §7.1, §10; início do mês sem sumir verba: §3); em 2026-10-16 (bloco 6, Leitura: §7.5). O que está em §10 espera resposta, uma por vez.
 Escopo: só produto (o quê e por quê). Implementação: [architecture.md](architecture.md).
 Vocabulário: [glossary.md](glossary.md). Identidade visual: [design_system.html](design_system.html).
 
@@ -139,12 +139,22 @@ Cinco abas: **Verbas** (início) · **Pauta** · **Lançamentos** · **Leitura**
 - Tocar abre a edição (7.3). Botão de **lançamento manual**.
 
 ### 7.5 Leitura
-- **Verbas por mês**: gasto × cota mês a mês, por verba (cada mês com a sua cota).
-- **Ritmo do mês**: gasto acumulado × plano dos passos, por verba, com a projeção "no passo atual".
-- **Marcadores e estabelecimentos**: ranking **por valor** no período escolhido, com a contagem ao lado (estabelecimentos pelo apelido).
-  Um lançamento com vários marcadores conta inteiro em cada um; a tela avisa que a soma dos marcadores pode passar do total.
-- **Calendário de gastos**: mapa de calor por dia.
+- **Um mês para a página toda**: seletor de mês no topo (do primeiro mês com verba até o atual; "1 a 31 · até sex, 9" no mês atual). Ritmo, ranking e calendário são desse mês; Verbas por mês termina nele.
+- **Ritmo do mês**: gasto acumulado × plano dos passos (ritmo ideal dia a dia), por verba, com a projeção "no passo atual".
+  - **Uma verba por vez**: o nome dela, na linha da seção, abre a escolha entre as verbas com cota no mês; vale também para Verbas por mês. Padrão: a mais em risco no mês (ordem do §8.1). A escolha fica enquanto a tela está aberta; num mês em que a verba não tem cota, volta ao padrão.
+  - Mês atual: o resto do mês sombreado e em branco; frase "+ R$ 51,10 sobre o ritmo ideal. No passo atual, o mês fecharia em R$ 796." (abaixo do ritmo: "R$ 20,00 abaixo do ritmo ideal. …"; fora da margem: "R$ 12,00 além da cota. …"; sem projeção quando o ritmo ideal de hoje é R$ 0,00, §5).
+  - Mês passado: o mês inteiro, sem sombra e sem projeção; frase "Fechou em R$ 1.180,00, R$ 60,00 dentro da cota." ou "… R$ 12,00 além da cota."
+- **Verbas por mês**: a verba escolhida nos 6 meses até o mês do topo, gasto × cota de cada mês (a cota de cada mês, §3), excesso em hachura com o valor. Meses antes do primeiro mês da verba ficam no lugar, vazios. Frase: "Dois meses fora da margem." / "Nenhum mês fora da margem."
+- **Marcadores e estabelecimentos**: ranking **por valor** no mês do topo, com a contagem ao lado (estabelecimentos pelo apelido).
+  - Seletor "Marcadores · Estabelecimentos" numa seção só; 6 linhas e depois "Ver todos (n)", que abre o resto no lugar. A escolha fica enquanto a tela está aberta.
+  - Um lançamento com vários marcadores conta inteiro em cada um; a tela avisa que a soma dos marcadores pode passar do total.
+  - Frase: "feira puxa a fila."
+- **Calendário de gastos**: mapa de calor por dia do mês do topo, com a semana dos Ajustes. Degrau 0 = sem gasto; degraus 1–4 em faixas iguais: degrau = maior dia do mês ÷ 4, arredondado para cima em R$ 10; o dia vai ao degrau ⌈gasto ÷ degrau⌉. Legenda "cada degrau ≈ R$ 60". Frase pelo dia da semana com mais gasto: "Os sábados pesam." e "31% do mês em quatro sábados".
 - Ranking e calendário contam a compra parcelada **pela data de cada parcela**, como o Gasto do mês (§3); a contagem do ranking é de lançamentos com parcela no período. Compras estornadas não contam.
+- **Frases** de conclusão por modelos fixos (acima); sem anotações com fio-guia.
+- **Acessibilidade**: cada gráfico tem descrição para o TalkBack com a frase de conclusão e os números principais; sem tabela equivalente.
+- **Vazio**: sem verba, "Nada para ler ainda."; com verba mas nada lançado no mês, Ritmo e Verbas por mês desenham em zero, e ranking e calendário dizem "Nada lançado em outubro." no lugar do gráfico.
+- **Cor da verba** (book 9.1): pela ordem de criação entre as verbas que existem (a primeira é Índigo); da 7ª em diante, "Outras". Apagar uma verba muda a cor das mais novas.
 
 ### 7.6 Ajustes
 - Fontes (quais apps são anotados).

@@ -135,6 +135,7 @@ internal fun budgetMonth(
         ideal = Cents(ideal),
         status = status,
         projection = Cents(projection),
+        idealByDay = emptyList(), // TODO block 6 (D44)
     )
 }
 
